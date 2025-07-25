@@ -2,7 +2,4 @@ playwright
 pytest
 pytest-playwright
 pytest-asyncio
-pytest-cov
-pytest-mock
-pytest-xdist
 pandas
