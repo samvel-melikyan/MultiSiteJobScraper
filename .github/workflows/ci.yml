@@ -1,5 +1,8 @@
-name: Python CI
+name: Python Playwright Scraper CI
 
+#on:
+#  schedule:
+#    - cron: '0 8 * * *'
 on:
   push:
     branches:
@@ -9,40 +12,34 @@ on:
       - master
 
 jobs:
-  test:
+  run-scraper:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Lint code
-      run: |
-        pip install flake8
-        flake8 .
+      - name: Install Playwright browsers
+        run: |
+          python -m playwright install --with-deps
 
-    - name: Run tests
-      run: |
-        pytest --cov=.
+      - name: Run scraper
+        run: |
+          python l3harris/scraper.py
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results
-        path: ./test-results/
+      - name: Upload Excel results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l3harris-jobs-excel
+          path: l3harris_jobs.xlsx
