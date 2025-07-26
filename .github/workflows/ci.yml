@@ -37,11 +37,11 @@ jobs:
 
       - name: Run scraper
         run: |
-          python l3harris/scrape_l3harris_jobs.py
+          python MultiSiteJobScraper\I3harris\scrape_l3harris_jobs.py
 
       - name: Upload Excel results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: l3harris-jobs-excel
-          path: l3harris/l3harris_jobs.xlsx
+          path: MultiSiteJobScraper\I3harris\l3harris_jobs.xlsx
