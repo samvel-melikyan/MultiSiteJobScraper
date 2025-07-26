@@ -3,3 +3,4 @@ pytest
 pytest-playwright
 pytest-asyncio
 pandas
+openpyxl
