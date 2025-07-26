@@ -1,8 +1,10 @@
 name: Python Playwright Scraper CI
 
-#on:
-#  schedule:
-#    - cron: '0 8 * * *'
+# Schedule: Uncomment to run every day at 08:00 UTC
+# on:
+#   schedule:
+#     - cron: '0 8 * * *'
+
 on:
   push:
     branches:
@@ -41,5 +43,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: l3harris_jobs.xlsx
-          path: I3harris/l3harris_jobs.xlsx
+          name: l3harris-jobs-excel
+          path: l3harris/l3harris_jobs.xlsx
