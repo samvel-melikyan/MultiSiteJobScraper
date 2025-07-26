@@ -37,7 +37,7 @@ jobs:
 
       - name: Run scraper
         run: |
-          python MultiSiteJobScraper\I3harris\scrape_l3harris_jobs.py
+          python l3harris/scrape_l3harris_jobs.py
 
       - name: Upload Excel results
         if: always()
