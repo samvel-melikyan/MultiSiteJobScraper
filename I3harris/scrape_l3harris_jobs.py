@@ -1,6 +1,29 @@
 import asyncio
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import async_playwright
 import pandas as pd
+
+job_format = ["remote", "onsite", "online", "full-time", "part-time", "contract", "internship", "temporary", "on site", "hybrid", "flexible"]
+
+def extract_sections(text):
+    lines = text.splitlines()
+    sections = {}
+    current_header = "General"
+    sections[current_header] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.endswith(":") and len(stripped.split()) < 10:
+            current_header = stripped.rstrip(":")
+            sections[current_header] = []
+        else:
+            sections[current_header].append(stripped)
+
+    for key in sections:
+        sections[key] = "\n".join(sections[key]).strip()
+
+    return sections
 
 async def scrape_jobs():
     async with async_playwright() as p:
@@ -18,9 +41,8 @@ async def scrape_jobs():
             total = await jobs.count()
             print(f"Found {total} jobs")
 
-            # Loop through all jobs in one page
             for i in range(total):
-                # if i == 2:
+                # if i == 6:
                 #     break
                 job = jobs.nth(i)
 
@@ -28,47 +50,56 @@ async def scrape_jobs():
                 location = await job.locator("span.job-location").inner_text()
                 url_suffix = await job.locator("a").get_attribute("href")
                 job_id = await job.locator("a").get_attribute("data-job-id")
-
                 full_url = f"https://careers.l3harris.com{url_suffix}"
 
-                # Visit job page to get description
+                # Visit job page
                 job_page = await browser.new_page()
                 await job_page.goto(full_url)
                 await job_page.wait_for_load_state("domcontentloaded")
 
                 try:
-                    description = await job_page.locator("div.job-description").inner_text()
+                    schedule = await job_page.get_by_text("Job Schedule:").inner_text()
                 except:
-                    description = "N/A"
+                    schedule = "N/A"
+
+                try:
+                    raw_description = await job_page.locator("div.job-description").inner_text()
+                except:
+                    raw_description = ""
 
                 await job_page.close()
 
-                job_data.append({
+                description_sections = extract_sections(raw_description)
+
+                job_entry = {
                     "Title": title,
                     "Location": location,
                     "Job ID": job_id,
                     "URL": full_url,
-                    "Description": description
-                })
+                    "Job Format": next((fmt for fmt in job_format if fmt in title.lower()), "N/A"),
+                    "Schedule": schedule,
+                    "Job Description": raw_description
+                }
+
+                for key, value in description_sections.items():
+                    job_entry[key] = value
+
+                job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
-            # page count tracking
+            # Pagination
             page_count = page.locator("#pagination-current-bottom")
             current_page = await page_count.get_attribute("value")
             max_page = await page_count.get_attribute("max")
 
             print(f"Page {current_page} of {max_page}")
-
             if int(current_page) == 3:
                 break
             await page.locator(".next").click()
 
-
-
-        # Save to EXCEL
+        # Save to Excel
         df = pd.DataFrame(job_data)
         df.to_excel("l3harris_jobs.xlsx", index=False)
-
         print("\nSaved to l3harris_jobs.xlsx")
 
         await browser.close()
