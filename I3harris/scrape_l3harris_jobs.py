@@ -93,7 +93,7 @@ async def scrape_jobs():
             max_page = await page_count.get_attribute("max")
 
             print(f"Page {current_page} of {max_page}")
-            if int(current_page) == 3:
+            if int(current_page) == int(max_page):
                 break
             await page.locator(".next").click()
 
