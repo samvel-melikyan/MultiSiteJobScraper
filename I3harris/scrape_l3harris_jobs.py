@@ -1,5 +1,5 @@
 import asyncio
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, expect
 import pandas as pd
 
 job_format = ["remote", "onsite", "online", "full-time", "part-time", "contract", "internship", "temporary", "on site", "hybrid", "flexible"]
@@ -42,9 +42,10 @@ async def scrape_jobs():
             print(f"Found {total} jobs")
 
             for i in range(total):
-                # if i == 6:
-                #     break
-                job = jobs.nth(i)
+                try:
+                    job = jobs.nth(i)
+                except:
+                    break
 
                 title = await job.locator("a h2").inner_text()
                 location = await job.locator("span.job-location").inner_text()
@@ -86,6 +87,10 @@ async def scrape_jobs():
 
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
+
+                # To test this part of limitation
+                if i == total:
+                    break
 
             # Pagination
             page_count = page.locator("#pagination-current-bottom")
