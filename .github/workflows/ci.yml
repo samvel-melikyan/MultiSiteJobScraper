@@ -5,6 +5,12 @@ name: Python Playwright Scraper CI
 #   schedule:
 #     - cron: '0 8 * * *'
 on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which scraper to run? (I3harris, Boeing, all)'
+        required: true
+        default: 'all'
   push:
     branches:
       - master
@@ -34,13 +40,24 @@ jobs:
         run: |
           python -m playwright install --with-deps
 
-      - name: Run scraper
-        run: |
-          python I3harris/scrape_l3harris_jobs.py
+      - name: Run I3harris scraper
+        if: ${{ inputs.target == 'I3harris' || inputs.target == 'all' }}
+        run: python I3harris/scrape_l3harris_jobs.py
 
-      - name: Upload Excel results
-        if: always()
+      - name: Run Boeing scraper
+        if: ${{ inputs.target == 'Boeing' || inputs.target == 'all' }}
+        run: python Boeing/scrape_boeing_jobs.py
+
+      - name: Upload I3harris results
+        if: ${{ inputs.target == 'I3harris' || inputs.target == 'all' }}
         uses: actions/upload-artifact@v4
         with:
           name: l3harris-jobs
           path: I3harris/l3harris_jobs.xlsx
+
+      - name: Upload Boeing results
+        if: ${{ inputs.target == 'Boeing' || inputs.target == 'all' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Boeing
+          path: Boeing/boeing_jobs.xlsx

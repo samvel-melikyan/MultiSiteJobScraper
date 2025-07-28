@@ -44,7 +44,7 @@ async def scrape_jobs():
             for i in range(total):
                 try:
                     job = jobs.nth(i)
-                except:
+                except TimeoutError:
                     break
 
                 title = await job.locator("a h2").inner_text()
@@ -78,12 +78,13 @@ async def scrape_jobs():
                     "Job ID": job_id,
                     "URL": full_url,
                     "Job Format": next((fmt for fmt in job_format if fmt in title.lower()), "N/A"),
-                    "Schedule": schedule,
+                    "Schedule": schedule.replace("Job Schedule: ", ""),
                     "Job Description": raw_description
                 }
 
                 for key, value in description_sections.items():
-                    job_entry[key] = value
+                    cleaned = value.replace("APPLY NOW", "")
+                    job_entry[key] = cleaned
 
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
