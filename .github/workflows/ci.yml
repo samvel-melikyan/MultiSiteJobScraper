@@ -14,6 +14,7 @@ on:
           - all
           - I3harris
           - Boeing
+          - General Dynamics
         default: all
   push:
     branches:
@@ -52,6 +53,10 @@ jobs:
         if: ${{ inputs.target == 'Boeing' || inputs.target == 'all' }}
         run: python Boeing/scrape_boeing_jobs.py
 
+      - name: Run General Dynamics scraper
+        if: ${{ inputs.target == 'General Dynamics' || inputs.target == 'all' }}
+        run: python GeneralDynamics/scrape_general_dynamics_jobs.py
+
       - name: Upload I3harris results
         if: ${{ inputs.target == 'I3harris' || inputs.target == 'all' }}
         uses: actions/upload-artifact@v4
@@ -65,3 +70,10 @@ jobs:
         with:
           name: Boeing
           path: Boeing/boeing_jobs.xlsx
+
+      - name: Upload General Dynamics results
+        if: ${{ inputs.target == 'General Dynamics' || inputs.target == 'all' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: General Dynamics
+          path: GeneralDynamics/general_dynamics_jobs.xlsx
