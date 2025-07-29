@@ -1,7 +1,7 @@
-playwright
-pytest
+playwright~=1.54.0
+pytest~=8.3.4
 pytest-playwright
 pytest-asyncio
-pandas
+pandas~=2.3.1
 openpyxl
-bs4
+beautifulsoup4~=4.13.4
