@@ -37,7 +37,11 @@ async def scrape_jobs():
         job_data = []
 
         while True:
-            jobs = page.locator("#search-results-list li")
+            try:
+                jobs = page.locator("#search-results-list li")
+            except TimeoutError:
+                print("Timeout while trying to find job listings. Exiting...")
+                break
             total = await jobs.count()
             print(f"Found {total} jobs")
 
@@ -47,16 +51,25 @@ async def scrape_jobs():
                 except TimeoutError:
                     break
 
-                title = await job.locator("a h2").inner_text()
-                location = await job.locator("span.job-location").inner_text()
-                url_suffix = await job.locator("a").get_attribute("href")
-                job_id = await job.locator("a").get_attribute("data-job-id")
-                full_url = f"https://careers.l3harris.com{url_suffix}"
+                try:
+                    title = await job.locator("a h2").inner_text()
+                    location = await job.locator("span.job-location").inner_text()
+                    url_suffix = await job.locator("a").get_attribute("href")
+                    job_id = await job.locator("a").get_attribute("data-job-id")
+                    full_url = f"https://careers.l3harris.com{url_suffix}"
+                except Exception as e:
+                    print(f"Error extracting job details for job {i+1}: {e}")
+                    continue
 
                 # Visit job page
-                job_page = await browser.new_page()
-                await job_page.goto(full_url)
-                await job_page.wait_for_load_state("domcontentloaded")
+                try:
+                    job_page = await browser.new_page()
+                    await job_page.goto(full_url)
+                    await job_page.wait_for_load_state("domcontentloaded")
+                except Exception as e:
+                    print(f"Error loading job page for {title}: {e}")
+                    await job_page.close()
+                    continue
 
                 try:
                     schedule = await job_page.get_by_text("Job Schedule:").inner_text()
@@ -89,7 +102,6 @@ async def scrape_jobs():
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
-                # To test this part of limitation
                 if i == total:
                     break
 
@@ -97,8 +109,8 @@ async def scrape_jobs():
             page_count = page.locator("#pagination-current-bottom")
             current_page = await page_count.get_attribute("value")
             max_page = await page_count.get_attribute("max")
-
             print(f"Page {current_page} of {max_page}")
+
             if int(current_page) == int(max_page):
                 break
             await page.locator(".next").click()

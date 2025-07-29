@@ -41,7 +41,11 @@ async def scrape_jobs():
         job_data = []
 
         while True:
-            jobs = page.locator("#search-results-list li")
+            try:
+                jobs = page.locator("#search-results-list li")
+            except TimeoutError:
+                print("Timeout while trying to find job listings. Exiting...")
+                break
             total = await jobs.count()
             print(f"Found {total} jobs")
 
@@ -51,21 +55,30 @@ async def scrape_jobs():
                 except TimeoutError:
                     break
 
-                title = await job.locator("a span").inner_text()
-                url_suffix = await job.locator("a").get_attribute("href")
-                full_url = f"https://jobs.boeing.com{url_suffix}"
+                try:
+                    title = await job.locator("a span").inner_text()
+                    url_suffix = await job.locator("a").get_attribute("href")
+                    full_url = f"https://jobs.boeing.com{url_suffix}"
+                except Exception as e:
+                    print(f"Error extracting job details for index {i}: {e}")
+                    continue
 
                 # Visit job page
-                job_page = await browser.new_page()
-                await job_page.goto(full_url)
-                await job_page.wait_for_load_state("domcontentloaded")
+                try:
+                    job_page = await browser.new_page()
+                    await job_page.goto(full_url)
+                    await job_page.wait_for_load_state("domcontentloaded")
+                except Exception as e:
+                    print(f"Error loading job page for {title}: {e}")
+                    await job_page.close()
+                    continue
 
                 try:
                     await expect(job_page.locator("#job-custom-error")).to_be_visible()
                     print(f"The job {title} has been removed: url - {full_url}")
                     await job_page.close()
                     continue
-                except:
+                except TimeoutError:
                     location = await job_page.locator(".job-description__job-location").inner_text()
                     posted_date = await job_page.locator(".job-description__job-info.job-date").inner_text()
                     job_id = await job_page.locator(".job-description__job-info.job-id").inner_text()
@@ -75,7 +88,7 @@ async def scrape_jobs():
                 try:
                     raw_html = await job_page.locator("#ats-description").inner_html()
                     raw_text = await job_page.locator("#ats-description").inner_text()
-                except:
+                except TimeoutError:
                     raw_html = ""
                     raw_text = ""
 
@@ -104,10 +117,10 @@ async def scrape_jobs():
             page_count = page.locator("#pagination-current-bottom")
             current_page = await page_count.get_attribute("value")
             max_page = await page_count.get_attribute("max")
-
             print(f"Page {current_page} of {max_page}")
 
-            # if int(current_page) == 1:  # Limit for dev/debug — remove to scrape full site
+            # Limit for dev/debug — remove to scrape full site
+            # if int(current_page) == 1:
             #     break
 
             if int(current_page) == int(max_page):
