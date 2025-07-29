@@ -8,9 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Which scraper to run? (I3harris, Boeing, all)'
-        required: true
-        default: 'all'
+        description: 'Which scraper to run?'
+        type: choice
+        options:
+          - all
+          - I3harris
+          - Boeing
+        default: all
   push:
     branches:
       - master
