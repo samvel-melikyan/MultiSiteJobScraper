@@ -1,38 +1,27 @@
 import asyncio
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import async_playwright
 import pandas as pd
-from bs4 import BeautifulSoup
+from I3harris.scrape_l3harris_jobs import extract_sections
 
 
-def extract_sections_from_html(html):
-    soup = BeautifulSoup(html, 'html.parser')
-    sections = {}
-    current_header = "General"
-    sections[current_header] = []
 
-    for p in soup.find_all("p"):
-        bold = p.find("b")
-        if bold:
-            header_text = bold.get_text(strip=True).rstrip(":")
-            current_header = header_text
-            if current_header not in sections:
-                sections[current_header] = []
-        else:
-            text = p.get_text(strip=True)
-            if text:
-                sections[current_header].append(text)
+def extract_salary_range(raw_text):
+    start_phrase = "Target salary range:"
+    end_phrase = "This estimate"
 
-    # Convert lists to strings
-    for key in sections:
-        sections[key] = "\n".join(sections[key]).strip()
+    try:
+        start = raw_text.index(start_phrase) + len(start_phrase)
+        end = raw_text.index(end_phrase, start)
+        return raw_text[start:end].strip()
+    except ValueError:
+        return None  # or log error / raise custom exception
 
-    return sections
 
 job_levels = ["entry", "mid", "senior", "lead", "manager", "director", "executive", "internship", "intern", "associate"]
 
 async def scrape_jobs():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
         await page.goto("https://gdmissionsystems.com/careers/job-search")
         print("Launching gdmissionsystems.com")
@@ -51,8 +40,8 @@ async def scrape_jobs():
             print(f"Found {total} jobs")
 
             for i in range(total):
-                if i == 3:
-                    break
+                if i == 5:
+                    continue
 
                 try:
                     job = jobs.nth(i)
@@ -106,7 +95,7 @@ async def scrape_jobs():
 
                 await job_page.close()
 
-                description_sections = extract_sections_from_html(raw_html)
+                description_sections = extract_sections(raw_text)
 
                 job_entry = {
                     "Title": title,
@@ -116,6 +105,7 @@ async def scrape_jobs():
                     "Employment Type": employment_type.replace("Employment Type ", ""),
                     "Category": category.replace("Category ", ""),
                     "Level": str([level for level in job_levels if level in title.lower()]).strip("[]").replace("'", ""),
+                    "Salary": extract_salary_range(raw_text),
                     "URL": full_url,
                     "Job Description (Raw)": raw_text
                 }
@@ -135,7 +125,7 @@ async def scrape_jobs():
             print(f"Page {current_page} of {max_page}")
 
             # Limit for dev/debug — remove to scrape full site
-            if int(current_page) == 1:
+            if int(current_page) == 3:
                 break
 
             if last_page:
