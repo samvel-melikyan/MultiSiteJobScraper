@@ -4,3 +4,4 @@ pytest-playwright
 pytest-asyncio
 pandas
 openpyxl
+bs4
