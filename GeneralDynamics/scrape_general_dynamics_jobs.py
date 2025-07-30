@@ -42,6 +42,7 @@ async def scrape_jobs():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        page.set_default_timeout(10000)
         await page.goto("https://gdmissionsystems.com/careers/job-search")
         print("Launching gdmissionsystems.com")
         print("Loading all jobs...")
@@ -140,12 +141,12 @@ async def scrape_jobs():
             current_page = int(await pagination.locator(".page-item.active").inner_text())
             next_page = pagination.get_by_text("›")
             max_page = int(await pagination.get_by_text("»").get_attribute("data-page-number")) + 1
-            last_page = await next_page.is_disabled()
             print(f"Page {current_page} of {max_page}")
 
-            if last_page:
+            try:
+                await next_page.click()
+            except:
                 break
-            await next_page.click()
 
         # Save to Excel
         df = pd.DataFrame(job_data)

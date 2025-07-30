@@ -29,10 +29,12 @@ async def scrape_jobs():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        page.set_default_timeout(12000)
+
         await page.goto("https://careers.l3harris.com/en/search-jobs")
         print("Launching l3harris.com")
         print("Loading all jobs...")
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(1000)
 
         job_data = []
 
@@ -65,7 +67,7 @@ async def scrape_jobs():
                 try:
                     job_page = await browser.new_page()
                     await job_page.goto(full_url)
-                    await job_page.wait_for_load_state("domcontentloaded")
+                    await job_page.wait_for_load_state("domcontentloaded", timeout=10000)
                 except Exception as e:
                     print(f"Error loading job page for {title}: {e}")
                     await job_page.close()
