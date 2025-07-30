@@ -33,6 +33,7 @@ async def scrape_jobs():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        page.set_default_timeout(12000)
         await page.goto("https://jobs.boeing.com/search-jobs")
         print("Launching jobs.boeing.com")
         print("Loading all jobs...")
@@ -74,17 +75,25 @@ async def scrape_jobs():
                     continue
 
                 try:
-                    await expect(job_page.locator("#job-custom-error")).to_be_visible()
-                    print(f"The job {title} has been removed: url - {full_url}")
-                    await job_page.close()
-                    continue
-                except TimeoutError:
                     location = await job_page.locator(".job-description__job-location").inner_text()
+                except TimeoutError:
+                    location = "N/A"
+                try:
                     posted_date = await job_page.locator(".job-description__job-info.job-date").inner_text()
+                except TimeoutError:
+                    posted_date = "N/A"
+                try:
                     job_id = await job_page.locator(".job-description__job-info.job-id").inner_text()
+                except TimeoutError:
+                    job_id = "N/A"
+                try:
                     category = await job_page.locator(".job-description__job-info.job-category").inner_text()
+                except TimeoutError:
+                    category = "N/A"
+                try:
                     role_type = await job_page.locator(".job-description__job-info.job-role-type").inner_text()
-
+                except TimeoutError:
+                    role_type = "N/A"
                 try:
                     raw_html = await job_page.locator("#ats-description").inner_html()
                     raw_text = await job_page.locator("#ats-description").inner_text()
@@ -118,10 +127,6 @@ async def scrape_jobs():
             current_page = await page_count.get_attribute("value")
             max_page = await page_count.get_attribute("max")
             print(f"Page {current_page} of {max_page}")
-
-            # Limit for dev/debug — remove to scrape full site
-            # if int(current_page) == 1:
-            #     break
 
             if int(current_page) == int(max_page):
                 break
