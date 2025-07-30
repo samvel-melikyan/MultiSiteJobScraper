@@ -67,6 +67,7 @@ async def scrape_jobs():
                 # Visit job page
                 try:
                     job_page = await browser.new_page()
+                    job_page.set_default_timeout(7000)
                     await job_page.goto(full_url)
                     await job_page.wait_for_load_state("domcontentloaded")
                 except Exception as e:
@@ -78,22 +79,27 @@ async def scrape_jobs():
                     location = await job_page.locator(".job-description__job-location").inner_text()
                 except TimeoutError:
                     location = "N/A"
+
                 try:
                     posted_date = await job_page.locator(".job-date").inner_text()
                 except TimeoutError:
                     posted_date = "N/A"
+
                 try:
                     job_id = await job_page.locator(".job-id").inner_text()
                 except TimeoutError:
                     job_id = "N/A"
+
                 try:
                     category = await job_page.locator(".job-category").inner_text()
                 except TimeoutError:
                     category = "N/A"
+
                 try:
                     role_type = await job_page.locator(".job-role-type").inner_text()
                 except TimeoutError:
                     role_type = "N/A"
+
                 try:
                     raw_html = await job_page.locator("#ats-description").inner_html()
                     raw_text = await job_page.locator("#ats-description").inner_text()
