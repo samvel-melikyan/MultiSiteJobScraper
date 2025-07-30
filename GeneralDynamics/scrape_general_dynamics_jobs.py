@@ -40,7 +40,7 @@ job_levels = ["entry", "mid", "senior", "lead", "manager", "director", "executiv
 
 async def scrape_jobs():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         await page.goto("https://gdmissionsystems.com/careers/job-search")
         print("Launching gdmissionsystems.com")
