@@ -1,7 +1,6 @@
 import asyncio
 from playwright.async_api import async_playwright
 import pandas as pd
-from I3harris.scrape_l3harris_jobs import extract_sections
 
 
 
@@ -16,6 +15,26 @@ def extract_salary_range(raw_text):
     except ValueError:
         return None  # or log error / raise custom exception
 
+def extract_sections(text):
+    lines = text.splitlines()
+    sections = {}
+    current_header = "General"
+    sections[current_header] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.endswith(":") and len(stripped.split()) < 10:
+            current_header = stripped.rstrip(":")
+            sections[current_header] = []
+        else:
+            sections[current_header].append(stripped)
+
+    for key in sections:
+        sections[key] = "\n".join(sections[key]).strip()
+
+    return sections
 
 job_levels = ["entry", "mid", "senior", "lead", "manager", "director", "executive", "internship", "intern", "associate"]
 
