@@ -1,7 +1,7 @@
 import asyncio
+import argparse
 from playwright.async_api import async_playwright
 import pandas as pd
-
 
 
 def extract_salary_range(raw_text):
@@ -13,7 +13,8 @@ def extract_salary_range(raw_text):
         end = raw_text.index(end_phrase, start)
         return raw_text[start:end].strip()
     except ValueError:
-        return None  # or log error / raise custom exception
+        return None
+
 
 def extract_sections(text):
     lines = text.splitlines()
@@ -36,9 +37,11 @@ def extract_sections(text):
 
     return sections
 
+
 job_levels = ["entry", "mid", "senior", "lead", "manager", "director", "executive", "internship", "intern", "associate"]
 
-async def scrape_jobs():
+
+async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -50,33 +53,26 @@ async def scrape_jobs():
 
         job_data = []
 
-        while True:
-            try:
-                jobs = page.locator("div .career-search-result.col-12")
-            except TimeoutError:
-                print("Timeout while trying to find job listings. Exiting...")
-                break
+        current_page = 1
+        while current_page <= end_page:
+            print(f"Scraping page {current_page} of {end_page}")
+
+            jobs = page.locator("div .career-search-result.col-12")
             total = await jobs.count()
-            print(f"Found {total} jobs")
+            print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
-                if i == 5:
+                if i == 5:  # skipping job index 5 as per original code
                     continue
 
                 try:
                     job = jobs.nth(i)
-                except TimeoutError:
-                    break
-
-                try:
                     title = await job.locator("h4").inner_text()
                     full_url = await job.get_by_text("VIEW JOB DESCRIPTION").get_attribute("href")
-                    # full_url = f"https://gdmissionsystems.com/careers{url_suffix}"
                 except Exception as e:
-                    print(f"Error extracting job details for index {i}: {e}")
+                    print(f"Error extracting job details for index {i} on page {current_page}: {e}")
                     continue
 
-                # Visit job page
                 try:
                     job_page = await browser.new_page()
                     await job_page.goto(full_url)
@@ -136,25 +132,29 @@ async def scrape_jobs():
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
-            # Pagination
-            pagination = page.locator(".pagination")
-            current_page = int(await pagination.locator(".page-item.active").inner_text())
-            next_page = pagination.get_by_text("›")
-            max_page = int(await pagination.get_by_text("»").get_attribute("data-page-number")) + 1
-            print(f"Page {current_page} of {max_page}")
-
-            try:
-                await next_page.click()
-            except:
+            if current_page >= end_page:
                 break
 
-        # Save to Excel
+            try:
+                await page.locator(".next").click()
+                await page.wait_for_load_state("domcontentloaded")
+                current_page += 1
+            except Exception as e:
+                print(f"Could not navigate to next page: {e}")
+                break
+
         df = pd.DataFrame(job_data)
-        df.to_excel("general_dynamics_jobs.xlsx", index=False)
-        print("\nSaved to general_dynamics_jobs.xlsx")
+        df.to_excel(output_file, index=False)
+        print(f"\nSaved to {output_file}")
 
         await browser.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(scrape_jobs())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--start", type=int, default=1)
+    parser.add_argument("--end", type=int, default=1000)
+    parser.add_argument("--output", type=str, default="general_dynamics_jobs.xlsx")
+    args = parser.parse_args()
+
+    asyncio.run(scrape_jobs(args.start, args.end, args.output))
