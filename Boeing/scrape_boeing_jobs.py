@@ -33,7 +33,7 @@ async def scrape_jobs():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        page.set_default_timeout(12000)
+        page.set_default_timeout(7000)
         await page.goto("https://jobs.boeing.com/search-jobs")
         print("Launching jobs.boeing.com")
         print("Loading all jobs...")
@@ -79,19 +79,19 @@ async def scrape_jobs():
                 except TimeoutError:
                     location = "N/A"
                 try:
-                    posted_date = await job_page.locator(".job-description__job-info.job-date").inner_text()
+                    posted_date = await job_page.locator(".job-date").inner_text()
                 except TimeoutError:
                     posted_date = "N/A"
                 try:
-                    job_id = await job_page.locator(".job-description__job-info.job-id").inner_text()
+                    job_id = await job_page.locator(".job-id").inner_text()
                 except TimeoutError:
                     job_id = "N/A"
                 try:
-                    category = await job_page.locator(".job-description__job-info.job-category").inner_text()
+                    category = await job_page.locator(".job-category").inner_text()
                 except TimeoutError:
                     category = "N/A"
                 try:
-                    role_type = await job_page.locator(".job-description__job-info.job-role-type").inner_text()
+                    role_type = await job_page.locator(".job-role-type").inner_text()
                 except TimeoutError:
                     role_type = "N/A"
                 try:
