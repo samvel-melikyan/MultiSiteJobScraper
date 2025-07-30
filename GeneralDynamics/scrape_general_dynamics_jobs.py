@@ -143,10 +143,6 @@ async def scrape_jobs():
             last_page = await next_page.is_disabled()
             print(f"Page {current_page} of {max_page}")
 
-            # Limit for dev/debug — remove to scrape full site
-            if int(current_page) == 3:
-                break
-
             if last_page:
                 break
             await next_page.click()
