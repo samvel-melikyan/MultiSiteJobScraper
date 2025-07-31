@@ -32,7 +32,7 @@ def extract_sections(text):
 
 async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
         page.set_default_timeout(10000)
 
@@ -45,29 +45,43 @@ async def scrape_jobs(start_page, end_page, output_file):
 
         while current_page <= end_page:
             print(f"Scraping page {current_page}")
-            await page.wait_for_selector("div.results-container", timeout=10000)
 
             jobs = page.locator("#search-results-list li a")
             total = await jobs.count()
             print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
+                job = jobs.nth(i)
                 try:
-                    job = jobs.nth(i)
                     title = await job.locator("span.job-title").inner_text()
+                except Exception as e:
+                    title = "N/A"
+                try:
                     job_id = await job.get_attribute("data-job-id")
+                except:
+                    job_id = "N/A"
+                try:
                     location = await job.locator("span.job-location").inner_text()
+                except:
+                    location = "N/A"
+                try:
                     job_url = await job.get_attribute("href")
+                except Exception as e:
+                    job_url = "N/A"
+                try:
                     posted = await job.locator("span.job-date-posted").inner_text()
+                except Exception as e:
+                    posted = "N/A"
+                try:
                     full_url = f"https://www.lockheedmartinjobs.com{job_url}"
                 except Exception as e:
-                    print(f"Error extracting job info at index {i}: {e}")
+                    print(f"Error constructing full URL at index {i}: {e}")
                     continue
 
                 try:
                     job_page = await browser.new_page()
                     await job_page.goto(full_url)
-                    await job_page.wait_for_load_state("domcontentloaded", timeout=10000)
+                    await job_page.wait_for_load_state("domcontentloaded")
                 except Exception as e:
                     print(f"Error loading job page for {title}: {e}")
                     await job_page.close()

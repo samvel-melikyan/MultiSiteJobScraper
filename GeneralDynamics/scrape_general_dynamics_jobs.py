@@ -107,10 +107,8 @@ async def scrape_jobs(start_page, end_page, output_file):
                 except:
                     employment_type = "N/A"
                 try:
-                    raw_html = await job_page.locator(".career-detail-description").inner_html()
                     raw_text = await job_page.locator(".career-detail-description").inner_text()
                 except:
-                    raw_html = ""
                     raw_text = ""
 
                 await job_page.close()
