@@ -52,14 +52,35 @@ async def scrape_jobs(start_page, end_page, output_file):
             for i in range(total):
                 try:
                     job = jobs.nth(i)
-                    title = await job.locator("a h2").inner_text()
-                    location = await job.locator("span.job-location").inner_text()
-                    url_suffix = await job.locator("a").get_attribute("href")
-                    job_id = await job.locator("a").get_attribute("data-job-id")
-                    full_url = f"https://careers.l3harris.com{url_suffix}"
                 except Exception as e:
-                    print(f"Error extracting job details for job {i+1} on page {current_page}: {e}")
+                    print(f"Error getting job element for job {i + 1} on page {current_page}: {e}")
                     continue
+
+                try:
+                    title = await job.locator("a h2").inner_text()
+                except Exception as e:
+                    print(f"Error extracting title for job {i + 1} on page {current_page}: {e}")
+                    continue
+
+                try:
+                    location = await job.locator("span.job-location").inner_text()
+                except Exception as e:
+                    print(f"Error extracting location for job {i + 1} on page {current_page}: {e}")
+                    continue
+
+                try:
+                    url_suffix = await job.locator("a").get_attribute("href")
+                except Exception as e:
+                    print(f"Error extracting URL suffix for job {i + 1} on page {current_page}: {e}")
+                    continue
+
+                try:
+                    job_id = await job.locator("a").get_attribute("data-job-id")
+                except Exception as e:
+                    print(f"Error extracting job ID for job {i + 1} on page {current_page}: {e}")
+                    continue
+
+                full_url = f"https://careers.l3harris.com{url_suffix}"
 
                 try:
                     job_page = await browser.new_page()
@@ -90,7 +111,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                     "Job ID": job_id,
                     "URL": full_url,
                     "Job Format": next((fmt for fmt in job_format if fmt in title.lower()), "N/A"),
-                    "Schedule": schedule.replace("Job Schedule: ", ""),
+                    "Schedule": schedule.replace("Job Schedule: ", ""),
                     "Job Description": raw_description
                 }
 
