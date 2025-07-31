@@ -3,6 +3,7 @@ import argparse
 from playwright.async_api import async_playwright, TimeoutError
 import pandas as pd
 from bs4 import BeautifulSoup
+from collections import defaultdict
 
 
 def extract_sections_from_html(html):
@@ -40,11 +41,10 @@ async def scrape_jobs(start_page, end_page, output_file):
         await page.wait_for_timeout(10000)
 
         job_data = []
-
         current_page = 1
+
         while current_page <= end_page:
             print(f"Scraping page {current_page} of {end_page}")
-
             jobs = page.locator("#search-results-list li")
             total = await jobs.count()
             print(f"Found {total} jobs on page {current_page}")
@@ -122,11 +122,9 @@ async def scrape_jobs(start_page, end_page, output_file):
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
-            # Stop if before start_page (shouldn't happen) or after end_page
             if current_page >= end_page:
                 break
 
-            # Go to next page
             try:
                 await page.locator(".next").click()
                 await page.wait_for_load_state("domcontentloaded")
@@ -135,10 +133,24 @@ async def scrape_jobs(start_page, end_page, output_file):
                 print(f"Could not navigate to next page: {e}")
                 break
 
+        # Merge duplicate columns with the same name
         df = pd.DataFrame(job_data)
-        df.to_excel(output_file, index=False)
-        print(f"\nSaved to {output_file}")
+        merged_columns = defaultdict(list)
 
+        for col in df.columns:
+            merged_columns[col].append(df[col])
+
+        merged_df = pd.DataFrame()
+        for col, col_list in merged_columns.items():
+            if len(col_list) == 1:
+                merged_df[col] = col_list[0]
+            else:
+                merged_df[col] = col_list[0].astype(str)
+                for additional_col in col_list[1:]:
+                    merged_df[col] += "\n" + additional_col.astype(str)
+
+        merged_df.to_excel(output_file, index=False)
+        print(f"\nSaved to {output_file}")
         await browser.close()
 
 

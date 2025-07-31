@@ -2,9 +2,9 @@ import asyncio
 import argparse
 from playwright.async_api import async_playwright
 import pandas as pd
+from collections import defaultdict
 
 job_format = ["remote", "onsite", "online", "full-time", "part-time", "contract", "internship", "temporary", "on site", "hybrid", "flexible"]
-
 
 def extract_sections(text):
     lines = text.splitlines()
@@ -26,7 +26,6 @@ def extract_sections(text):
         sections[key] = "\n".join(sections[key]).strip()
 
     return sections
-
 
 async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
@@ -52,32 +51,12 @@ async def scrape_jobs(start_page, end_page, output_file):
             for i in range(total):
                 try:
                     job = jobs.nth(i)
-                except Exception as e:
-                    print(f"Error getting job element for job {i + 1} on page {current_page}: {e}")
-                    continue
-
-                try:
                     title = await job.locator("a h2").inner_text()
-                except Exception as e:
-                    print(f"Error extracting title for job {i + 1} on page {current_page}: {e}")
-                    continue
-
-                try:
                     location = await job.locator("span.job-location").inner_text()
-                except Exception as e:
-                    print(f"Error extracting location for job {i + 1} on page {current_page}: {e}")
-                    continue
-
-                try:
                     url_suffix = await job.locator("a").get_attribute("href")
-                except Exception as e:
-                    print(f"Error extracting URL suffix for job {i + 1} on page {current_page}: {e}")
-                    continue
-
-                try:
                     job_id = await job.locator("a").get_attribute("data-job-id")
                 except Exception as e:
-                    print(f"Error extracting job ID for job {i + 1} on page {current_page}: {e}")
+                    print(f"Error processing job {i + 1}: {e}")
                     continue
 
                 full_url = f"https://careers.l3harris.com{url_suffix}"
@@ -134,11 +113,26 @@ async def scrape_jobs(start_page, end_page, output_file):
                 break
 
         df = pd.DataFrame(job_data)
-        df.to_excel(output_file, index=False)
-        print(f"\nSaved to {output_file}")
+
+        # --- Merge duplicate columns ---
+        merged_columns = defaultdict(list)
+        for col in df.columns:
+            merged_columns[col].append(df[col])
+
+        merged_df = pd.DataFrame()
+        for col, col_list in merged_columns.items():
+            if len(col_list) == 1:
+                merged_df[col] = col_list[0]
+            else:
+                merged_df[col] = col_list[0].astype(str)
+                for additional_col in col_list[1:]:
+                    merged_df[col] = merged_df[col] + "\n" + additional_col.astype(str)
+
+        # Save to Excel
+        merged_df.to_excel(output_file, index=False)
+        print(f"\n✅ Saved to {output_file}")
 
         await browser.close()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

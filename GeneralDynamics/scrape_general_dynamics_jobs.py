@@ -2,6 +2,7 @@ import asyncio
 import argparse
 from playwright.async_api import async_playwright
 import pandas as pd
+from collections import defaultdict
 
 
 def extract_salary_range(raw_text):
@@ -144,8 +145,23 @@ async def scrape_jobs(start_page, end_page, output_file):
                 break
 
         df = pd.DataFrame(job_data)
-        df.to_excel(output_file, index=False)
-        print(f"\nSaved to {output_file}")
+
+        # --- Merge duplicate columns ---
+        merged_columns = defaultdict(list)
+        for col in df.columns:
+            merged_columns[col].append(df[col])
+
+        merged_df = pd.DataFrame()
+        for col, col_list in merged_columns.items():
+            if len(col_list) == 1:
+                merged_df[col] = col_list[0]
+            else:
+                merged_df[col] = col_list[0].astype(str)
+                for additional_col in col_list[1:]:
+                    merged_df[col] = merged_df[col] + "\n" + additional_col.astype(str)
+
+        merged_df.to_excel(output_file, index=False)
+        print(f"\n✅ Saved to {output_file}")
 
         await browser.close()
 
