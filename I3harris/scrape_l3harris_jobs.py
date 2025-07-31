@@ -130,7 +130,7 @@ async def scrape_jobs(start_page, end_page, output_file):
 
         # Save to Excel
         merged_df.to_excel(output_file, index=False)
-        print(f"\n✅ Saved to {output_file}")
+        print(f"\nSaved to {output_file}")
 
         await browser.close()
 
