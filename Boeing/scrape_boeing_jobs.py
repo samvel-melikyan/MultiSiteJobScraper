@@ -1,7 +1,10 @@
 import asyncio
-from playwright.async_api import async_playwright, expect
+import argparse
+from playwright.async_api import async_playwright, TimeoutError
 import pandas as pd
 from bs4 import BeautifulSoup
+from collections import defaultdict
+import sys
 
 
 def extract_sections_from_html(html):
@@ -22,50 +25,56 @@ def extract_sections_from_html(html):
             if text:
                 sections[current_header].append(text)
 
-    # Convert lists to strings
     for key in sections:
         sections[key] = "\n".join(sections[key]).strip()
 
     return sections
 
 
-async def scrape_jobs():
+async def scrape_jobs(start_page, end_page, output_file):
+    if end_page == "max":
+        end_page = float('inf')
+    else:
+        try:
+            end_page = int(end_page)
+        except ValueError:
+            print("❌ Invalid value for --end. Use an integer or 'max'.")
+            sys.exit(1)
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        await page.goto("https://jobs.boeing.com/search-jobs")
+        page.set_default_timeout(7000)
+        await page.goto("https://jobs.boeing.com/search-jobs", wait_until="domcontentloaded")
         print("Launching jobs.boeing.com")
         print("Loading all jobs...")
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(10000)
 
         job_data = []
+        current_page = start_page
 
         while True:
-            try:
-                jobs = page.locator("#search-results-list li")
-            except TimeoutError:
-                print("Timeout while trying to find job listings. Exiting...")
+            if current_page > end_page:
                 break
+
+            print(f"Scraping page {current_page}")
+            jobs = page.locator("#search-results-list li")
             total = await jobs.count()
-            print(f"Found {total} jobs")
+            print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
                 try:
                     job = jobs.nth(i)
-                except TimeoutError:
-                    break
-
-                try:
                     title = await job.locator("a span").inner_text()
                     url_suffix = await job.locator("a").get_attribute("href")
                     full_url = f"https://jobs.boeing.com{url_suffix}"
                 except Exception as e:
-                    print(f"Error extracting job details for index {i}: {e}")
+                    print(f"Error extracting job details for index {i} on page {current_page}: {e}")
                     continue
 
-                # Visit job page
                 try:
                     job_page = await browser.new_page()
+                    job_page.set_default_timeout(7000)
                     await job_page.goto(full_url)
                     await job_page.wait_for_load_state("domcontentloaded")
                 except Exception as e:
@@ -74,21 +83,34 @@ async def scrape_jobs():
                     continue
 
                 try:
-                    await expect(job_page.locator("#job-custom-error")).to_be_visible()
-                    print(f"The job {title} has been removed: url - {full_url}")
-                    await job_page.close()
-                    continue
-                except TimeoutError:
                     location = await job_page.locator(".job-description__job-location").inner_text()
-                    posted_date = await job_page.locator(".job-description__job-info.job-date").inner_text()
-                    job_id = await job_page.locator(".job-description__job-info.job-id").inner_text()
-                    category = await job_page.locator(".job-description__job-info.job-category").inner_text()
-                    role_type = await job_page.locator(".job-description__job-info.job-role-type").inner_text()
+                except:
+                    location = "N/A"
+
+                try:
+                    posted_date = await job_page.locator(".job-date").inner_text()
+                except:
+                    posted_date = "N/A"
+
+                try:
+                    job_id = await job_page.locator(".job-id").inner_text()
+                except:
+                    job_id = "N/A"
+
+                try:
+                    category = await job_page.locator(".job-category").inner_text()
+                except:
+                    category = "N/A"
+
+                try:
+                    role_type = await job_page.locator(".job-role-type").inner_text()
+                except:
+                    role_type = "N/A"
 
                 try:
                     raw_html = await job_page.locator("#ats-description").inner_html()
                     raw_text = await job_page.locator("#ats-description").inner_text()
-                except TimeoutError:
+                except:
                     raw_html = ""
                     raw_text = ""
 
@@ -113,27 +135,45 @@ async def scrape_jobs():
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
-            # Pagination
-            page_count = page.locator("#pagination-current-bottom")
-            current_page = await page_count.get_attribute("value")
-            max_page = await page_count.get_attribute("max")
-            print(f"Page {current_page} of {max_page}")
-
-            # Limit for dev/debug — remove to scrape full site
-            # if int(current_page) == 1:
-            #     break
-
-            if int(current_page) == int(max_page):
+            # Try to go to next page
+            try:
+                next_btn = page.locator(".next")
+                if await next_btn.get_attribute("disabled"):
+                    print("✅ Reached the last page.")
+                    break
+                await next_btn.click()
+                await page.wait_for_load_state("domcontentloaded")
+                current_page += 1
+            except Exception as e:
+                print(f"Could not navigate to next page: {e}")
                 break
-            await page.locator(".next").click()
 
-        # Save to Excel
+        # Merge duplicate columns with the same name
         df = pd.DataFrame(job_data)
-        df.to_excel("boeing_jobs.xlsx", index=False)
-        print("\nSaved to boeing_jobs.xlsx")
+        merged_columns = defaultdict(list)
 
+        for col in df.columns:
+            merged_columns[col].append(df[col])
+
+        merged_df = pd.DataFrame()
+        for col, col_list in merged_columns.items():
+            if len(col_list) == 1:
+                merged_df[col] = col_list[0]
+            else:
+                merged_df[col] = col_list[0].astype(str)
+                for additional_col in col_list[1:]:
+                    merged_df[col] += "\n" + additional_col.astype(str)
+
+        merged_df.to_excel(output_file, index=False)
+        print(f"\n✅ Saved to {output_file}")
         await browser.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(scrape_jobs())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--start", type=int, default=1)
+    parser.add_argument("--end", type=str, default="max")  # ← now accepts 'max'
+    parser.add_argument("--output", type=str, default="boeing_jobs.xlsx")
+    args = parser.parse_args()
+
+    asyncio.run(scrape_jobs(args.start, args.end, args.output))

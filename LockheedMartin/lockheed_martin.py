@@ -4,7 +4,10 @@ from playwright.async_api import async_playwright
 import pandas as pd
 from collections import defaultdict
 
-job_format = ["remote", "onsite", "online", "full-time", "part-time", "contract", "internship", "temporary", "on site", "hybrid", "flexible"]
+job_format = [
+    "remote", "onsite", "online", "full-time", "part-time",
+    "contract", "internship", "temporary", "on site", "hybrid", "flexible"
+]
 
 def extract_sections(text):
     lines = text.splitlines()
@@ -31,34 +34,35 @@ async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        page.set_default_timeout(12000)
+        page.set_default_timeout(10000)
 
-        await page.goto("https://careers.l3harris.com/en/search-jobs")
-        print("Launching l3harris.com")
-        await page.wait_for_timeout(1000)
+        await page.goto("https://www.lockheedmartinjobs.com/search-jobs", timeout=30000)
+        print("Launched lockheedmartinjobs.com")
+        print("Loading jobs...")
 
         job_data = []
-
         current_page = start_page
+
         while current_page <= end_page:
             print(f"Scraping page {current_page}")
+            await page.wait_for_selector("div.results-container", timeout=10000)
 
-            jobs = page.locator("#search-results-list li")
+            jobs = page.locator("#search-results-list li a")
             total = await jobs.count()
             print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
                 try:
                     job = jobs.nth(i)
-                    title = await job.locator("a h2").inner_text()
+                    title = await job.locator("span.job-title").inner_text()
+                    job_id = await job.get_attribute("data-job-id")
                     location = await job.locator("span.job-location").inner_text()
-                    url_suffix = await job.locator("a").get_attribute("href")
-                    job_id = await job.locator("a").get_attribute("data-job-id")
+                    job_url = await job.get_attribute("href")
+                    posted = await job.locator("span.job-date-posted").inner_text()
+                    full_url = f"https://www.lockheedmartinjobs.com{job_url}"
                 except Exception as e:
-                    print(f"Error processing job {i + 1}: {e}")
+                    print(f"Error extracting job info at index {i}: {e}")
                     continue
-
-                full_url = f"https://careers.l3harris.com{url_suffix}"
 
                 try:
                     job_page = await browser.new_page()
@@ -70,27 +74,22 @@ async def scrape_jobs(start_page, end_page, output_file):
                     continue
 
                 try:
-                    schedule = await job_page.get_by_text("Job Schedule:").inner_text()
+                    raw_text = await job_page.locator("div.job-description").inner_text()
                 except:
-                    schedule = "N/A"
-
-                try:
-                    raw_description = await job_page.locator("div.job-description").inner_text()
-                except:
-                    raw_description = ""
+                    raw_text = ""
 
                 await job_page.close()
 
-                description_sections = extract_sections(raw_description)
+                description_sections = extract_sections(raw_text)
 
                 job_entry = {
                     "Title": title,
-                    "Location": location,
                     "Job ID": job_id,
+                    "Posted Date": posted,
+                    "Location": location,
                     "URL": full_url,
                     "Job Format": next((fmt for fmt in job_format if fmt in title.lower()), "N/A"),
-                    "Schedule": schedule.replace("Job Schedule: ", ""),
-                    "Job Description": raw_description
+                    "Job Description": raw_text
                 }
 
                 for key, value in description_sections.items():
@@ -100,10 +99,14 @@ async def scrape_jobs(start_page, end_page, output_file):
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
+            if current_page >= end_page:
+                break
+
             try:
-                next_btn = page.locator(".next")
-                if await next_btn.get_attribute("disabled") or current_page >= end_page:
-                    print("Reached last page or end limit.")
+                next_btn = page.locator("button[aria-label='Next Page']")
+                is_disabled = await next_btn.get_attribute("disabled")
+                if is_disabled:
+                    print("No more pages to scrape.")
                     break
                 await next_btn.click()
                 await page.wait_for_load_state("domcontentloaded")
@@ -114,7 +117,6 @@ async def scrape_jobs(start_page, end_page, output_file):
 
         df = pd.DataFrame(job_data)
 
-        # --- Merge duplicate columns ---
         merged_columns = defaultdict(list)
         for col in df.columns:
             merged_columns[col].append(df[col])
@@ -128,25 +130,16 @@ async def scrape_jobs(start_page, end_page, output_file):
                 for additional_col in col_list[1:]:
                     merged_df[col] = merged_df[col] + "\n" + additional_col.astype(str)
 
-        # Save to Excel
         merged_df.to_excel(output_file, index=False)
-        print(f"\n✅ Saved to {output_file}")
+        print(f"\nSaved to {output_file}")
 
         await browser.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
-    parser.add_argument("--end", type=str, default="max")  # Accepts "max"
-    parser.add_argument("--output", type=str, default="l3harris_jobs.xlsx")
+    parser.add_argument("--end", type=int, default=10)
+    parser.add_argument("--output", type=str, default="lockheed_martin_jobs.xlsx")
     args = parser.parse_args()
 
-    if args.end == "max":
-        end_page = float("inf")
-    else:
-        try:
-            end_page = int(args.end)
-        except ValueError:
-            raise ValueError("`--end` must be an integer or 'max'.")
-
-    asyncio.run(scrape_jobs(args.start, end_page, args.output))
+    asyncio.run(scrape_jobs(args.start, args.end, args.output))
