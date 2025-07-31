@@ -17,9 +17,9 @@ on:
         required: false
         default: '1'
       end_page:
-        description: 'End page number (for chunked scraping)'
+        description: 'End page number (use "max" to scrape to the end)'
         required: false
-        default: '10'
+        default: 'max'
 
   push:
     branches:

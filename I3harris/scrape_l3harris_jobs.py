@@ -35,14 +35,13 @@ async def scrape_jobs(start_page, end_page, output_file):
 
         await page.goto("https://careers.l3harris.com/en/search-jobs")
         print("Launching l3harris.com")
-        print("Loading all jobs...")
         await page.wait_for_timeout(1000)
 
         job_data = []
 
-        current_page = 1
+        current_page = start_page
         while current_page <= end_page:
-            print(f"Scraping page {current_page} of {end_page}")
+            print(f"Scraping page {current_page}")
 
             jobs = page.locator("#search-results-list li")
             total = await jobs.count()
@@ -101,11 +100,12 @@ async def scrape_jobs(start_page, end_page, output_file):
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
-            if current_page >= end_page:
-                break
-
             try:
-                await page.locator(".next").click()
+                next_btn = page.locator(".next")
+                if await next_btn.get_attribute("disabled") or current_page >= end_page:
+                    print("Reached last page or end limit.")
+                    break
+                await next_btn.click()
                 await page.wait_for_load_state("domcontentloaded")
                 current_page += 1
             except Exception as e:
@@ -130,15 +130,23 @@ async def scrape_jobs(start_page, end_page, output_file):
 
         # Save to Excel
         merged_df.to_excel(output_file, index=False)
-        print(f"\nSaved to {output_file}")
+        print(f"\n✅ Saved to {output_file}")
 
         await browser.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
-    parser.add_argument("--end", type=int, default=1000)
+    parser.add_argument("--end", type=str, default="max")  # Accepts "max"
     parser.add_argument("--output", type=str, default="l3harris_jobs.xlsx")
     args = parser.parse_args()
 
-    asyncio.run(scrape_jobs(args.start, args.end, args.output))
+    if args.end == "max":
+        end_page = float("inf")
+    else:
+        try:
+            end_page = int(args.end)
+        except ValueError:
+            raise ValueError("`--end` must be an integer or 'max'.")
+
+    asyncio.run(scrape_jobs(args.start, end_page, args.output))

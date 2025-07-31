@@ -4,6 +4,7 @@ from playwright.async_api import async_playwright, TimeoutError
 import pandas as pd
 from bs4 import BeautifulSoup
 from collections import defaultdict
+import sys
 
 
 def extract_sections_from_html(html):
@@ -31,6 +32,15 @@ def extract_sections_from_html(html):
 
 
 async def scrape_jobs(start_page, end_page, output_file):
+    if end_page == "max":
+        end_page = float('inf')
+    else:
+        try:
+            end_page = int(end_page)
+        except ValueError:
+            print("❌ Invalid value for --end. Use an integer or 'max'.")
+            sys.exit(1)
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -41,10 +51,13 @@ async def scrape_jobs(start_page, end_page, output_file):
         await page.wait_for_timeout(10000)
 
         job_data = []
-        current_page = 1
+        current_page = start_page
 
-        while current_page <= end_page:
-            print(f"Scraping page {current_page} of {end_page}")
+        while True:
+            if current_page > end_page:
+                break
+
+            print(f"Scraping page {current_page}")
             jobs = page.locator("#search-results-list li")
             total = await jobs.count()
             print(f"Found {total} jobs on page {current_page}")
@@ -122,11 +135,13 @@ async def scrape_jobs(start_page, end_page, output_file):
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
-            if current_page >= end_page:
-                break
-
+            # Try to go to next page
             try:
-                await page.locator(".next").click()
+                next_btn = page.locator(".next")
+                if await next_btn.get_attribute("disabled"):
+                    print("✅ Reached the last page.")
+                    break
+                await next_btn.click()
                 await page.wait_for_load_state("domcontentloaded")
                 current_page += 1
             except Exception as e:
@@ -150,14 +165,14 @@ async def scrape_jobs(start_page, end_page, output_file):
                     merged_df[col] += "\n" + additional_col.astype(str)
 
         merged_df.to_excel(output_file, index=False)
-        print(f"\nSaved to {output_file}")
+        print(f"\n✅ Saved to {output_file}")
         await browser.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
-    parser.add_argument("--end", type=int, default=1000)
+    parser.add_argument("--end", type=str, default="max")  # ← now accepts 'max'
     parser.add_argument("--output", type=str, default="boeing_jobs.xlsx")
     args = parser.parse_args()
 

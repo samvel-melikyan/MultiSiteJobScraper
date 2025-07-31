@@ -4,6 +4,10 @@ from playwright.async_api import async_playwright
 import pandas as pd
 from collections import defaultdict
 
+job_format = [
+    "remote", "onsite", "online", "full-time", "part-time",
+    "contract", "internship", "temporary", "on site", "hybrid", "flexible"
+]
 
 def extract_sections(text):
     lines = text.splitlines()
@@ -26,25 +30,22 @@ def extract_sections(text):
 
     return sections
 
-
 async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        page.set_default_timeout(7000)
+        page.set_default_timeout(10000)
 
         await page.goto("https://www.lockheedmartinjobs.com/search-jobs", timeout=30000)
         print("Launched lockheedmartinjobs.com")
         print("Loading jobs...")
 
         job_data = []
-
         current_page = start_page
+
         while current_page <= end_page:
             print(f"Scraping page {current_page}")
-
-            # Wait for job listings container
-            await page.wait_for_selector("div.results-container")
+            await page.wait_for_selector("div.results-container", timeout=10000)
 
             jobs = page.locator("#search-results-list li a")
             total = await jobs.count()
@@ -66,7 +67,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                 try:
                     job_page = await browser.new_page()
                     await job_page.goto(full_url)
-                    await job_page.wait_for_load_state("domcontentloaded")
+                    await job_page.wait_for_load_state("domcontentloaded", timeout=10000)
                 except Exception as e:
                     print(f"Error loading job page for {title}: {e}")
                     await job_page.close()
@@ -83,13 +84,17 @@ async def scrape_jobs(start_page, end_page, output_file):
 
                 job_entry = {
                     "Title": title,
+                    "Job ID": job_id,
+                    "Posted Date": posted,
                     "Location": location,
                     "URL": full_url,
-                    "Job Description (Raw)": raw_text
+                    "Job Format": next((fmt for fmt in job_format if fmt in title.lower()), "N/A"),
+                    "Job Description": raw_text
                 }
 
                 for key, value in description_sections.items():
-                    job_entry[key] = value
+                    cleaned = value.replace("APPLY NOW", "")
+                    job_entry[key] = cleaned
 
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
@@ -98,7 +103,6 @@ async def scrape_jobs(start_page, end_page, output_file):
                 break
 
             try:
-                # Click next page button if exists and enabled
                 next_btn = page.locator("button[aria-label='Next Page']")
                 is_disabled = await next_btn.get_attribute("disabled")
                 if is_disabled:
@@ -113,7 +117,6 @@ async def scrape_jobs(start_page, end_page, output_file):
 
         df = pd.DataFrame(job_data)
 
-        # --- Merge duplicate columns ---
         merged_columns = defaultdict(list)
         for col in df.columns:
             merged_columns[col].append(df[col])
@@ -131,7 +134,6 @@ async def scrape_jobs(start_page, end_page, output_file):
         print(f"\nSaved to {output_file}")
 
         await browser.close()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
