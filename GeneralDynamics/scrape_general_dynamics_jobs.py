@@ -137,7 +137,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                 print(f"[{i+1}/{total}] Scraped: {title}")
 
             try:
-                next_btn = page.locator(".next")
+                next_btn = page.locator(".page-item.secondary").nth(1)
                 if await next_btn.get_attribute("disabled"):
                     print("Reached last page.")
                     break
