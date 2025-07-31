@@ -3,8 +3,12 @@ import argparse
 from playwright.async_api import async_playwright
 import pandas as pd
 from collections import defaultdict
+import re
 
-job_format = ["remote", "onsite", "online", "full-time", "part-time", "contract", "internship", "temporary", "on site", "hybrid", "flexible"]
+job_format = [
+    "remote", "onsite", "online", "full-time", "part-time",
+    "contract", "internship", "temporary", "on site", "hybrid", "flexible"
+]
 
 def extract_sections(text):
     lines = text.splitlines()
@@ -31,18 +35,16 @@ async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        page.set_default_timeout(12000)
-
-        await page.goto("https://careers.l3harris.com/en/search-jobs")
+        page.set_default_timeout(7000)
+        await page.goto("https://careers.l3harris.com/en/search-jobs", timeout=15000)
         print("Launching l3harris.com")
         await page.wait_for_timeout(1000)
 
         job_data = []
-
         current_page = start_page
+
         while current_page <= end_page:
             print(f"Scraping page {current_page}")
-
             jobs = page.locator("#search-results-list li")
             total = await jobs.count()
             print(f"Found {total} jobs on page {current_page}")
@@ -62,6 +64,7 @@ async def scrape_jobs(start_page, end_page, output_file):
 
                 try:
                     job_page = await browser.new_page()
+                    job_page.set_default_timeout(7000)
                     await job_page.goto(full_url)
                     await job_page.wait_for_load_state("domcontentloaded", timeout=10000)
                 except Exception as e:
@@ -70,7 +73,10 @@ async def scrape_jobs(start_page, end_page, output_file):
                     continue
 
                 try:
-                    schedule = await job_page.get_by_text("Job Schedule:").inner_text()
+                    schedule_element = job_page.locator("text=Job Schedule:")
+                    schedule = await schedule_element.evaluate(
+                        "el => el.nextSibling?.textContent || el.parentElement?.textContent || 'N/A'"
+                    )
                 except:
                     schedule = "N/A"
 
@@ -81,6 +87,11 @@ async def scrape_jobs(start_page, end_page, output_file):
 
                 await job_page.close()
 
+                # Extract job format from title
+                title_words = set(re.findall(r'\w+', title.lower()))
+                job_fmt = next((fmt for fmt in job_format if any(fmt in word for word in title_words)), "N/A")
+
+                # Section extraction
                 description_sections = extract_sections(raw_description)
 
                 job_entry = {
@@ -88,13 +99,13 @@ async def scrape_jobs(start_page, end_page, output_file):
                     "Location": location,
                     "Job ID": job_id,
                     "URL": full_url,
-                    "Job Format": next((fmt for fmt in job_format if fmt in title.lower()), "N/A"),
+                    "Job Format": job_fmt,
                     "Schedule": schedule.replace("Job Schedule: ", ""),
                     "Job Description": raw_description
                 }
 
                 for key, value in description_sections.items():
-                    cleaned = value.replace("APPLY NOW", "")
+                    cleaned = re.sub(r"\bapply now\b", "", value, flags=re.IGNORECASE).strip()
                     job_entry[key] = cleaned
 
                 job_data.append(job_entry)
@@ -114,30 +125,31 @@ async def scrape_jobs(start_page, end_page, output_file):
 
         df = pd.DataFrame(job_data)
 
-        # --- Merge duplicate columns ---
+        # Efficient merge of duplicate columns
         merged_columns = defaultdict(list)
         for col in df.columns:
             merged_columns[col].append(df[col])
 
-        merged_df = pd.DataFrame()
+        concat_data = {}
         for col, col_list in merged_columns.items():
             if len(col_list) == 1:
-                merged_df[col] = col_list[0]
+                concat_data[col] = col_list[0]
             else:
-                merged_df[col] = col_list[0].astype(str)
+                merged_col = col_list[0].astype(str)
                 for additional_col in col_list[1:]:
-                    merged_df[col] = merged_df[col] + "\n" + additional_col.astype(str)
+                    merged_col += "\n" + additional_col.astype(str)
+                concat_data[col] = merged_col
 
-        # Save to Excel
+        merged_df = pd.concat(concat_data, axis=1).copy()
         merged_df.to_excel(output_file, index=False)
-        print(f"\n✅ Saved to {output_file}")
+        print(f"\nSaved to {output_file}")
 
         await browser.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
-    parser.add_argument("--end", type=str, default="max")  # Accepts "max"
+    parser.add_argument("--end", type=str, default="max")
     parser.add_argument("--output", type=str, default="l3harris_jobs.xlsx")
     args = parser.parse_args()
 

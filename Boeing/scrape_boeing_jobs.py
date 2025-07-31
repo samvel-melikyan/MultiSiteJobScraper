@@ -38,7 +38,7 @@ async def scrape_jobs(start_page, end_page, output_file):
         try:
             end_page = int(end_page)
         except ValueError:
-            print("❌ Invalid value for --end. Use an integer or 'max'.")
+            print("Invalid value for --end. Use an integer or 'max'.")
             sys.exit(1)
 
     async with async_playwright() as p:
@@ -65,11 +65,21 @@ async def scrape_jobs(start_page, end_page, output_file):
             for i in range(total):
                 try:
                     job = jobs.nth(i)
+                except Exception as e:
+                    print(f"Error getting job element for index {i} on page {current_page}: {e}")
+                    break
+
+                try:
                     title = await job.locator("a span").inner_text()
+                except Exception as e:
+                    print(f"Error extracting title for index {i} on page {current_page}: {e}")
+                    continue
+
+                try:
                     url_suffix = await job.locator("a").get_attribute("href")
                     full_url = f"https://jobs.boeing.com{url_suffix}"
                 except Exception as e:
-                    print(f"Error extracting job details for index {i} on page {current_page}: {e}")
+                    print(f"Error extracting URL for index {i} on page {current_page}: {e}")
                     continue
 
                 try:
@@ -139,7 +149,7 @@ async def scrape_jobs(start_page, end_page, output_file):
             try:
                 next_btn = page.locator(".next")
                 if await next_btn.get_attribute("disabled"):
-                    print("✅ Reached the last page.")
+                    print("Reached the last page.")
                     break
                 await next_btn.click()
                 await page.wait_for_load_state("domcontentloaded")
@@ -148,31 +158,34 @@ async def scrape_jobs(start_page, end_page, output_file):
                 print(f"Could not navigate to next page: {e}")
                 break
 
-        # Merge duplicate columns with the same name
+        # Merge duplicate columns with same name efficiently
         df = pd.DataFrame(job_data)
         merged_columns = defaultdict(list)
 
         for col in df.columns:
             merged_columns[col].append(df[col])
 
-        merged_df = pd.DataFrame()
+        concat_data = {}
         for col, col_list in merged_columns.items():
             if len(col_list) == 1:
-                merged_df[col] = col_list[0]
+                concat_data[col] = col_list[0]
             else:
-                merged_df[col] = col_list[0].astype(str)
+                merged_col = col_list[0].astype(str)
                 for additional_col in col_list[1:]:
-                    merged_df[col] += "\n" + additional_col.astype(str)
+                    merged_col += "\n" + additional_col.astype(str)
+                concat_data[col] = merged_col
+
+        merged_df = pd.concat(concat_data, axis=1).copy()
 
         merged_df.to_excel(output_file, index=False)
-        print(f"\n✅ Saved to {output_file}")
+        print(f"\nSaved to {output_file}")
         await browser.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
-    parser.add_argument("--end", type=str, default="max")  # ← now accepts 'max'
+    parser.add_argument("--end", type=str, default="max")
     parser.add_argument("--output", type=str, default="boeing_jobs.xlsx")
     args = parser.parse_args()
 

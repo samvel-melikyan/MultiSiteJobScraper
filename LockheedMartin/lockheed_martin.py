@@ -51,7 +51,11 @@ async def scrape_jobs(start_page, end_page, output_file):
             print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
-                job = jobs.nth(i)
+                try:
+                    job = jobs.nth(i)
+                except Exception as e:
+                    print(f"{e} or last job reached at index {i}, breaking loop.")
+                    break
                 try:
                     title = await job.locator("span.job-title").inner_text()
                 except Exception as e:
