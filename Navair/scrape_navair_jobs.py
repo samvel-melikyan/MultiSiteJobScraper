@@ -56,8 +56,7 @@ async def scrape_jobs(start_page, end_page, output_file):
             print(f"Found {total} job posts on page {current_page}")
 
             for i in range(total):
-                # if i == 4:
-                #     break
+                 
                 try:
                     job = job_items.nth(i)
                 except Exception as e:
