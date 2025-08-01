@@ -1,5 +1,7 @@
 import asyncio
 import argparse
+import sys
+
 from playwright.async_api import async_playwright
 import pandas as pd
 from collections import defaultdict
@@ -31,6 +33,15 @@ def extract_sections(text):
     return sections
 
 async def scrape_jobs(start_page, end_page, output_file):
+    if end_page == "max":
+        end_page = float('inf')
+    else:
+        try:
+            end_page = int(end_page)
+        except ValueError:
+            print("Invalid value for --end. Use an integer or 'max'.")
+            sys.exit(1)
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -130,25 +141,28 @@ async def scrape_jobs(start_page, end_page, output_file):
                 print(f"Could not navigate to next page: {e}")
                 break
 
-        df = pd.DataFrame(job_data)
+            # Merge duplicate columns with same name efficiently
+            df = pd.DataFrame(job_data)
+            merged_columns = defaultdict(list)
 
-        merged_columns = defaultdict(list)
-        for col in df.columns:
-            merged_columns[col].append(df[col])
+            for col in df.columns:
+                merged_columns[col].append(df[col])
 
-        merged_df = pd.DataFrame()
-        for col, col_list in merged_columns.items():
-            if len(col_list) == 1:
-                merged_df[col] = col_list[0]
-            else:
-                merged_df[col] = col_list[0].astype(str)
-                for additional_col in col_list[1:]:
-                    merged_df[col] = merged_df[col] + "\n" + additional_col.astype(str)
+            concat_data = {}
+            for col, col_list in merged_columns.items():
+                if len(col_list) == 1:
+                    concat_data[col] = col_list[0]
+                else:
+                    merged_col = col_list[0].astype(str)
+                    for additional_col in col_list[1:]:
+                        merged_col += "\n" + additional_col.astype(str)
+                    concat_data[col] = merged_col
 
-        merged_df.to_excel(output_file, index=False)
-        print(f"\nSaved to {output_file}")
+            merged_df = pd.concat(concat_data, axis=1).copy()
 
-        await browser.close()
+            merged_df.to_excel(output_file, index=False)
+            print(f"\nSaved to {output_file}")
+            await browser.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
