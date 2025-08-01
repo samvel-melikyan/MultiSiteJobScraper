@@ -1,4 +1,4 @@
-name: Python Playwright - Job Scraper CI
+name: Job Scraper CI
 
 on:
   workflow_dispatch:
@@ -30,28 +30,18 @@ on:
 
 jobs:
   run-scraper:
-    name: Run Scraper (${{ inputs.target }})
     runs-on: ubuntu-latest
 
     steps:
-      - name: Rename workflow run to "Playwright Scraper - ${{ inputs.target }}"
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: |
-          curl -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }} \
-            -d "{\"name\":\"Playwright Scraper - ${{ inputs.target }}\"}"
-
-      - name: 🛒 Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Python 3.10
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
