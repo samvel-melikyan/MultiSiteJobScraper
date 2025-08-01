@@ -113,7 +113,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                 job_entry = {
                     "Title": title,
                     "Job ID": job_id,
-                    "Posted Date": posted,
+                    "Posted Date": posted.replace("Date Posted: ", ""),
                     "Location": location,
                     "URL": full_url,
                     "Job Description": raw_text
@@ -135,7 +135,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                     print("No more pages to scrape.")
                     break
                 await next_btn.click()
-                await page.wait_for_load_state("domcontentloaded")
+                await page.wait_for_load_state("domcontentloaded", timeout=15000)
                 current_page += 1
             except Exception as e:
                 print(f"Could not navigate to next page: {e}")
