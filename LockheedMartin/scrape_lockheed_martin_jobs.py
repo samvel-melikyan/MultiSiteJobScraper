@@ -32,7 +32,7 @@ def extract_sections(text):
 
 async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         page.set_default_timeout(10000)
 
@@ -51,9 +51,6 @@ async def scrape_jobs(start_page, end_page, output_file):
             print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
-
-                if i == 3:
-                    break
                 try:
                     job = jobs.nth(i)
                 except Exception as e:
@@ -73,11 +70,11 @@ async def scrape_jobs(start_page, end_page, output_file):
                     location = "N/A"
                 try:
                     job_url = await job.get_attribute("href")
-                except Exception as e:
+                except Exception:
                     job_url = "N/A"
                 try:
                     posted = await job.locator("span.job-date-posted").inner_text()
-                except Exception as e:
+                except Exception:
                     posted = "N/A"
                 try:
                     full_url = f"https://www.lockheedmartinjobs.com{job_url}"
