@@ -73,7 +73,7 @@ jobs:
       - name: Run Navair scraper
         if: ${{ inputs.target == 'Navair' || inputs.target == 'all' }}
         run: |
-          python LockheedMartin/scrape_navair_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "LockheedMartin/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx"
+          python Navair/scrape_navair_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "Navair/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx"
 
 
       - name: Upload I3harris results
@@ -109,4 +109,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: navair-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}
-          path: LockheedMartin/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx
+          path: Navair/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx
