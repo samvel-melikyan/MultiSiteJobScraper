@@ -160,4 +160,12 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="navair_jobs.xlsx")
     args = parser.parse_args()
 
+    if args.end == "max":
+        end_page = float("inf")
+    else:
+        try:
+            end_page = int(args.end)
+        except ValueError:
+            raise ValueError("`--end` must be an integer or 'max'.")
+
     asyncio.run(scrape_jobs(args.start, args.end, args.output))
