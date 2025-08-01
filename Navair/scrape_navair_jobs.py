@@ -126,7 +126,7 @@ async def scrape_jobs(start_page, end_page, output_file):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1, help="Start page number")
-    parser.add_argument("--end", type=int, default=5, help="End page number")
+    parser.add_argument("--end", type=str, default=5, help="End page number")
     parser.add_argument("--output", type=str, default="navair_jobs.xlsx", help="Output Excel file")
     args = parser.parse_args()
 

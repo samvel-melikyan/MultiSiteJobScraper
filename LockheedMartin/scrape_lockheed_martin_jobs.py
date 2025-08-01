@@ -153,7 +153,7 @@ async def scrape_jobs(start_page, end_page, output_file):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
-    parser.add_argument("--end", type=int, default=10)
+    parser.add_argument("--end", type=str, default="max")
     parser.add_argument("--output", type=str, default="lockheed_martin_jobs.xlsx")
     args = parser.parse_args()
 
