@@ -58,7 +58,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                     break
                 try:
                     title = await job.locator("span.job-title").inner_text()
-                except Exception as e:
+                except Exception:
                     title = "N/A"
                 try:
                     job_id = await job.get_attribute("data-job-id")
@@ -92,7 +92,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                     continue
 
                 try:
-                    raw_text = await job_page.locator("div.job-description").inner_text()
+                    raw_text = await job_page.locator("div..ajd_job-details__ats-description").inner_text()
                 except:
                     raw_text = ""
 
@@ -106,13 +106,11 @@ async def scrape_jobs(start_page, end_page, output_file):
                     "Posted Date": posted,
                     "Location": location,
                     "URL": full_url,
-                    "Job Format": next((fmt for fmt in job_format if fmt in title.lower()), "N/A"),
                     "Job Description": raw_text
                 }
 
                 for key, value in description_sections.items():
-                    cleaned = value.replace("APPLY NOW", "")
-                    job_entry[key] = cleaned
+                    job_entry[key] = value
 
                 job_data.append(job_entry)
                 print(f"[{i+1}/{total}] Scraped: {title}")
