@@ -51,37 +51,37 @@ jobs:
           python -m playwright install --with-deps
 
       - name: Generate timestamp for unique file naming
-        run: echo "RUN_ID=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+        run: echo "RUN_ID=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
 
       - name: Run I3harris scraper
         if: ${{ inputs.target == 'I3harris' || inputs.target == 'all' }}
         run: |
-          python I3harris/scrape_l3harris_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "I3harris/l3harris_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${RUN_ID}.xlsx"
+          python I3harris/scrape_l3harris_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "I3harris/l3harris_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
 
       - name: Run Boeing scraper
         if: ${{ inputs.target == 'Boeing' || inputs.target == 'all' }}
         run: |
-          python Boeing/scrape_boeing_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "Boeing/boeing_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${RUN_ID}.xlsx"
+          python Boeing/scrape_boeing_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "Boeing/boeing_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
 
       - name: Run General Dynamics scraper
         if: ${{ inputs.target == 'General Dynamics' || inputs.target == 'all' }}
         run: |
-          python GeneralDynamics/scrape_general_dynamics_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "GeneralDynamics/general_dynamics_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${RUN_ID}.xlsx"
+          python GeneralDynamics/scrape_general_dynamics_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "GeneralDynamics/general_dynamics_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
 
       - name: Run Lockheed Martin scraper
         if: ${{ inputs.target == 'Lockheed Martin' || inputs.target == 'all' }}
         run: |
-          python LockheedMartin/scrape_lockheed_martin_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "LockheedMartin/lockheed_martin_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${RUN_ID}.xlsx"
+          python LockheedMartin/scrape_lockheed_martin_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "LockheedMartin/lockheed_martin_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
 
       - name: Run Navair scraper
         if: ${{ inputs.target == 'Navair' || inputs.target == 'all' }}
         run: |
-          python Navair/scrape_navair_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "Navair/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${RUN_ID}.xlsx"
+          python Navair/scrape_navair_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "Navair/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
 
       - name: Debug – Show all output files
         run: |
-          echo "Generated files:"
-          find . -name "*.xlsx"
+          echo "Generated .xlsx files:"
+          find . -type f -name "*.xlsx" -exec ls -l {} \;
 
       - name: Upload I3harris results
         if: ${{ inputs.target == 'I3harris' || inputs.target == 'all' }}
