@@ -116,4 +116,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: navair-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}-${{ env.RUN_ID }}
-          path: Navair/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx
+          path: Navair/navair_jobs.xlsx
