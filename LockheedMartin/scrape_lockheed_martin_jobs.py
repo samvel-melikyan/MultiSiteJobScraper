@@ -1,6 +1,8 @@
 import asyncio
 import argparse
 import sys
+import os
+from datetime import datetime
 
 from playwright.async_api import async_playwright
 import pandas as pd
@@ -64,74 +66,46 @@ async def scrape_jobs(start_page, end_page, output_file):
             print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
-                try:
-                    job = jobs.nth(i)
-                except Exception as e:
-                    print(f"{e} or last job reached at index {i}, breaking loop.")
+                if i == 2:
                     break
                 try:
+                    job = jobs.nth(i)
                     title = await job.locator("span.job-title").inner_text()
-                except Exception:
-                    title = "N/A"
-                try:
-                    job_id = await job.get_attribute("data-job-id")
-                except:
-                    job_id = "N/A"
-                try:
+                    job_id = await job.get_attribute("data-job-id") or "N/A"
                     location = await job.locator("span.job-location").inner_text()
-                except:
-                    location = "N/A"
-                try:
-                    job_url = await job.get_attribute("href")
-                except Exception:
-                    job_url = "N/A"
-                try:
+                    job_url = await job.get_attribute("href") or "#"
                     posted = await job.locator("span.job-date-posted").inner_text()
-                except Exception:
-                    posted = "N/A"
-                try:
                     full_url = f"https://www.lockheedmartinjobs.com{job_url}"
-                except Exception as e:
-                    print(f"Error constructing full URL at index {i}: {e}")
-                    continue
 
-                try:
                     job_page = await browser.new_page()
                     await job_page.goto(full_url)
                     await job_page.wait_for_load_state("domcontentloaded")
+                    raw_text = await job_page.locator("div.ajd_job-details__ats-description").inner_text()
+                    await job_page.close()
+
+                    description_sections = extract_sections(raw_text)
+
+                    job_entry = {
+                        "Title": title,
+                        "Job ID": job_id,
+                        "Posted Date": posted.replace("Date Posted: ", ""),
+                        "Location": location,
+                        "URL": full_url,
+                        "Job Description": raw_text
+                    }
+
+                    for key, value in description_sections.items():
+                        job_entry[key] = value
+
+                    job_data.append(job_entry)
+                    print(f"[{i+1}/{total}] Scraped: {title}")
+
                 except Exception as e:
-                    print(f"Error loading job page for {title}: {e}")
+                    print(f"Error on job index {i}: {e}")
                     continue
 
-                try:
-                    raw_text = await job_page.locator("div.ajd_job-details__ats-description").inner_text()
-                except:
-                    raw_text = ""
-
-                await job_page.close()
-
-                description_sections = extract_sections(raw_text)
-
-                job_entry = {
-                    "Title": title,
-                    "Job ID": job_id,
-                    "Posted Date": posted.replace("Date Posted: ", ""),
-                    "Location": location,
-                    "URL": full_url,
-                    "Job Description": raw_text
-                }
-
-                for key, value in description_sections.items():
-                    job_entry[key] = value
-
-                job_data.append(job_entry)
-                print(f"[{i+1}/{total}] Scraped: {title}")
-
-            if current_page >= end_page:
-                break
-
             try:
-                next_btn = page.locator(".next")
+                next_btn = page.locator("a.next")
                 is_disabled = await next_btn.get_attribute("disabled")
                 if is_disabled:
                     print("No more pages to scrape.")
@@ -143,34 +117,23 @@ async def scrape_jobs(start_page, end_page, output_file):
                 print(f"Could not navigate to next page: {e}")
                 break
 
-            # Merge duplicate columns with same name efficiently
-            df = pd.DataFrame(job_data)
-            merged_columns = defaultdict(list)
+        # Save once all pages are done
+        df = pd.DataFrame(job_data)
+        df.to_excel(output_file, index=False)
+        print(f"\nSaved to {output_file}")
 
-            for col in df.columns:
-                merged_columns[col].append(df[col])
-
-            concat_data = {}
-            for col, col_list in merged_columns.items():
-                if len(col_list) == 1:
-                    concat_data[col] = col_list[0]
-                else:
-                    merged_col = col_list[0].astype(str)
-                    for additional_col in col_list[1:]:
-                        merged_col += "\n" + additional_col.astype(str)
-                    concat_data[col] = merged_col
-
-            merged_df = pd.concat(concat_data, axis=1).copy()
-
-            merged_df.to_excel(output_file, index=False)
-            print(f"\nSaved to {output_file}")
-            await browser.close()
+        await browser.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
     parser.add_argument("--end", type=str, default="max")
-    parser.add_argument("--output", type=str, default="lockheed_martin_jobs.xlsx")
+    parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
+
+    # Generate timestamped filename if not passed
+    if not args.output:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        args.output = f"LockheedMartin/lockheed_martin_jobs_{args.start}_{args.end}_{timestamp}.xlsx"
 
     asyncio.run(scrape_jobs(args.start, args.end, args.output))
