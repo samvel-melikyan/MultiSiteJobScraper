@@ -51,6 +51,9 @@ async def scrape_jobs(start_page, end_page, output_file):
             print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
+
+                if i == 3:
+                    break
                 try:
                     job = jobs.nth(i)
                 except Exception as e:
@@ -92,7 +95,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                     continue
 
                 try:
-                    raw_text = await job_page.locator("div..ajd_job-details__ats-description").inner_text()
+                    raw_text = await job_page.locator("div.ajd_job-details__ats-description").inner_text()
                 except:
                     raw_text = ""
 
@@ -119,7 +122,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                 break
 
             try:
-                next_btn = page.locator("button[aria-label='Next Page']")
+                next_btn = page.locator(".next")
                 is_disabled = await next_btn.get_attribute("disabled")
                 if is_disabled:
                     print("No more pages to scrape.")
