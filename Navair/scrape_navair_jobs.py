@@ -154,9 +154,9 @@ async def scrape_jobs(start_page, end_page, output_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--start", type=int, default=1, help="Start page number")
-    parser.add_argument("--end", type=str, default=5, help="End page number")
-    parser.add_argument("--output", type=str, default="navair_jobs.xlsx", help="Output Excel file")
+    parser.add_argument("--start", type=int, default=1)
+    parser.add_argument("--end", type=str, default="max")
+    parser.add_argument("--output", type=str, default="navair_jobs.xlsx")
     args = parser.parse_args()
 
     asyncio.run(scrape_jobs(args.start, args.end, args.output))
