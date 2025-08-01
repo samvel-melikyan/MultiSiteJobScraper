@@ -88,7 +88,6 @@ async def scrape_jobs(start_page, end_page, output_file):
                     await job_page.wait_for_load_state("domcontentloaded")
                 except Exception as e:
                     print(f"Error loading job page for {title}: {e}")
-                    await job_page.close()
                     continue
 
                 try:
