@@ -45,7 +45,7 @@ async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        page.set_default_timeout(10000)
+        page.set_default_timeout(7000)
 
         await page.goto("https://www.lockheedmartinjobs.com/search-jobs", timeout=30000)
         print("Launched lockheedmartinjobs.com")
@@ -54,9 +54,11 @@ async def scrape_jobs(start_page, end_page, output_file):
         job_data = []
         current_page = start_page
 
-        while current_page <= end_page:
-            print(f"Scraping page {current_page}")
+        while True:
+            if current_page > end_page:
+                break
 
+            print(f"Scraping page {current_page}")
             jobs = page.locator("#search-results-list li a")
             total = await jobs.count()
             print(f"Found {total} jobs on page {current_page}")
