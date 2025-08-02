@@ -163,7 +163,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                     merged_df[col] = merged_df[col] + "\n" + additional_col.astype(str)
 
         merged_df.to_excel(output_file, index=False)
-        print(f"\n✅ Saved to {output_file}")
+        print(f"\nSaved to {output_file}")
 
         await browser.close()
 
