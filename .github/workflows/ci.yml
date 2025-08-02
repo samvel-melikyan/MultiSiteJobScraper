@@ -1,4 +1,4 @@
-name: Python Playwright Scraper CI${{ inputs.target && format(' - {0}', inputs.target) || '' }}
+name: Job Scraper CI
 
 on:
   workflow_dispatch:
@@ -11,6 +11,8 @@ on:
           - I3harris
           - Boeing
           - General Dynamics
+          - Lockheed Martin
+          - Navair
         default: all
       start_page:
         description: 'Start page number (for chunked scraping)'
@@ -22,11 +24,9 @@ on:
         default: 'max'
 
   push:
-    branches:
-      - master
+    branches: [ master ]
   pull_request:
-    branches:
-      - master
+    branches: [ master ]
 
 jobs:
   run-scraper:
@@ -50,47 +50,70 @@ jobs:
         run: |
           python -m playwright install --with-deps
 
+      - name: Generate timestamp for unique file naming
+        run: echo "RUN_ID=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+
       - name: Run I3harris scraper
         if: ${{ inputs.target == 'I3harris' || inputs.target == 'all' }}
         run: |
-          python I3harris/scrape_l3harris_jobs.py --start ${START_PAGE} --end ${END_PAGE} --output I3harris/l3harris_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx
-        env:
-          START_PAGE: ${{ inputs.start_page }}
-          END_PAGE: ${{ inputs.end_page }}
+          python I3harris/scrape_l3harris_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "I3harris/l3harris_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
 
       - name: Run Boeing scraper
         if: ${{ inputs.target == 'Boeing' || inputs.target == 'all' }}
         run: |
-          python Boeing/scrape_boeing_jobs.py --start ${START_PAGE} --end ${END_PAGE} --output Boeing/boeing_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx
-        env:
-          START_PAGE: ${{ inputs.start_page }}
-          END_PAGE: ${{ inputs.end_page }}
+          python Boeing/scrape_boeing_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "Boeing/boeing_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
 
       - name: Run General Dynamics scraper
         if: ${{ inputs.target == 'General Dynamics' || inputs.target == 'all' }}
         run: |
-          python GeneralDynamics/scrape_general_dynamics_jobs.py --start ${START_PAGE} --end ${END_PAGE} --output GeneralDynamics/general_dynamics_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx
-        env:
-          START_PAGE: ${{ inputs.start_page }}
-          END_PAGE: ${{ inputs.end_page }}
+          python GeneralDynamics/scrape_general_dynamics_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "GeneralDynamics/general_dynamics_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
+
+      - name: Run Lockheed Martin scraper
+        if: ${{ inputs.target == 'Lockheed Martin' || inputs.target == 'all' }}
+        run: |
+          python LockheedMartin/scrape_lockheed_martin_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "LockheedMartin/lockheed_martin_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
+
+      - name: Run Navair scraper
+        if: ${{ inputs.target == 'Navair' || inputs.target == 'all' }}
+        run: |
+          python Navair/scrape_navair_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "Navair/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
+
+      - name: Debug – Show all output files
+        run: |
+          echo "Generated .xlsx files:"
+          find . -type f -name "*.xlsx" -exec ls -l {} \;
 
       - name: Upload I3harris results
         if: ${{ inputs.target == 'I3harris' || inputs.target == 'all' }}
         uses: actions/upload-artifact@v4
         with:
-          name: l3harris-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}
-          path: I3harris/l3harris_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx
+          name: l3harris-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}-${{ env.RUN_ID }}
+          path: I3harris/l3harris_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx
 
       - name: Upload Boeing results
         if: ${{ inputs.target == 'Boeing' || inputs.target == 'all' }}
         uses: actions/upload-artifact@v4
         with:
-          name: boeing-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}
-          path: Boeing/boeing_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx
+          name: boeing-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}-${{ env.RUN_ID }}
+          path: Boeing/boeing_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx
 
       - name: Upload General Dynamics results
         if: ${{ inputs.target == 'General Dynamics' || inputs.target == 'all' }}
         uses: actions/upload-artifact@v4
         with:
-          name: general-dynamics-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}
-          path: GeneralDynamics/general_dynamics_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}.xlsx
+          name: general-dynamics-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}-${{ env.RUN_ID }}
+          path: GeneralDynamics/general_dynamics_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx
+
+      - name: Upload Lockheed Martin results
+        if: ${{ inputs.target == 'Lockheed Martin' || inputs.target == 'all' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockheed-martin-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}-${{ env.RUN_ID }}
+          path: LockheedMartin/lockheed_martin_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx
+
+      - name: Upload Navair results
+        if: ${{ inputs.target == 'Navair' || inputs.target == 'all' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: navair-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}-${{ env.RUN_ID }}
+          path: Navair/navair_jobs.xlsx
