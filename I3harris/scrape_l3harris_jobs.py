@@ -40,11 +40,22 @@ async def scrape_jobs(start_page, end_page, output_file):
         print("Launching l3harris.com")
         await page.wait_for_timeout(1000)
 
+        total_pages = await page.locator(".pagination-total-pages").inner_text()
+        if end_page == "half":
+            end_page = int(total_pages) // 2
+        elif start_page == "half":
+            start_page = int(total_pages) // 2
+
+        if start_page > 1:
+            await page.locator("#pagination-current-bottom").fill(str(start_page))
+            await page.locator(".pagination-page-jump").click()
+            await page.wait_for_timeout(1000)
+
         job_data = []
         current_page = start_page
 
         while current_page <= end_page:
-            print(f"Scraping page {current_page}")
+            print(f"Scraping page {current_page} {total_pages}")
             jobs = page.locator("#search-results-list li")
             total = await jobs.count()
             print(f"Found {total} jobs on page {current_page}")
