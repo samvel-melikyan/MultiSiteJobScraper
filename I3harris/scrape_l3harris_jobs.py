@@ -32,7 +32,7 @@ def extract_sections(text):
     return sections
 
 async def scrape_jobs(start_page, end_page, output_file):
-    async with async_playwright() as p:
+    async with (async_playwright() as p):
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         page.set_default_timeout(7000)
@@ -44,7 +44,7 @@ async def scrape_jobs(start_page, end_page, output_file):
         if end_page == "half":
             end_page = int(total_pages) // 2
         elif start_page == "half":
-            start_page = int(total_pages) // 2
+            start_page = (int(total_pages) // 2) + 1
 
         if start_page > 1:
             await page.locator("#pagination-current-bottom").fill(str(start_page))
@@ -52,9 +52,12 @@ async def scrape_jobs(start_page, end_page, output_file):
             await page.wait_for_timeout(1000)
 
         job_data = []
-        current_page = start_page
 
-        while current_page <= end_page:
+        while True:
+            current_page = await page.locator("#pagination-current-bottom").get_attribute("value")
+            if int(current_page) > end_page:
+                break
+
             print(f"Scraping page {current_page} {total_pages}")
             jobs = page.locator("#search-results-list li")
             total = await jobs.count()
@@ -77,7 +80,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                     job_page = await browser.new_page()
                     job_page.set_default_timeout(7000)
                     await job_page.goto(full_url)
-                    await job_page.wait_for_load_state("domcontentloaded", timeout=10000)
+                    await job_page.wait_for_load_state("domcontentloaded")
                 except Exception as e:
                     print(f"Error loading job page for {title}: {e}")
                     await job_page.close()
@@ -129,7 +132,6 @@ async def scrape_jobs(start_page, end_page, output_file):
                     break
                 await next_btn.click()
                 await page.wait_for_load_state("domcontentloaded")
-                current_page += 1
             except Exception as e:
                 print(f"Could not navigate to next page: {e}")
                 break
