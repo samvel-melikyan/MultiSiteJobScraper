@@ -76,7 +76,7 @@ jobs:
       - name: Run Navair scraper
         if: ${{ inputs.target == 'Navair' || inputs.target == 'all' }}
         run: |
-          python Navair/scrape_navair_jobs.py --start "${{ inputs.start_page }}" --end "${{ inputs.end_page }}" --output "Navair/navair_jobs_${{ inputs.start_page }}_${{ inputs.end_page }}_${{ env.RUN_ID }}.xlsx"
+          python Navair/scrape_navair_jobs.py --output "Navair/navair_jobs${{ env.RUN_ID }}.xlsx"
 
       - name: Debug – Show all output files
         run: |
@@ -115,5 +115,5 @@ jobs:
         if: ${{ inputs.target == 'Navair' || inputs.target == 'all' }}
         uses: actions/upload-artifact@v4
         with:
-          name: navair-jobs-${{ inputs.start_page }}-${{ inputs.end_page }}-${{ env.RUN_ID }}
+          name: navair-jobs
           path: Navair/navair_jobs.xlsx

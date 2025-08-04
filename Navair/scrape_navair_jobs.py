@@ -1,170 +1,67 @@
 import asyncio
 import argparse
-import sys
-from collections import defaultdict
+from datetime import datetime
+import os
 
 from playwright.async_api import async_playwright
 import pandas as pd
 
-def extract_sections(text):
-    lines = text.splitlines()
-    sections = {}
-    current_header = "General"
-    sections[current_header] = []
+from scraper.scraper import Scraper  # Ensure this path is correct
 
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.endswith(":") and len(stripped.split()) < 10:
-            current_header = stripped.rstrip(":")
-            sections[current_header] = []
-        else:
-            sections[current_header].append(stripped)
 
-    for key in sections:
-        sections[key] = "\n".join(sections[key]).strip()
+async def scrape_jobs(output_file: str):
+    url = "https://navair.yellogov.com/job_boards/mdxt8VG0qqvc7z8xHhZztg"
+    company_name = "NAVAIR"
 
-    return sections
-
-async def scrape_jobs(start_page, end_page, output_file):
-    if end_page == "max":
-        end_page = float('inf')
-    else:
-        try:
-            end_page = int(end_page)
-        except ValueError:
-            print("Invalid value for --end. Use an integer or 'max'.")
-            sys.exit(1)
+    # Ensure directory exists
+    # os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        page.set_default_timeout(7000)
+        scraper = Scraper(url, company_name, output_file=output_file)
+        await scraper.goto_page(p)
 
-        job_data = []
-        current_page = start_page
+        await scraper.find_jobs(scraper.page.locator("li.search-results__item"), 1)
+        total = await scraper.jobs.count()
 
-        print("Navigating to NAVAIR job board...")
-        await page.goto("https://navair.yellogov.com/job_boards/mdxt8VG0qqvc7z8xHhZztg", timeout=15000)
-
-        while current_page <= end_page:
-            print(f"\nScraping page {current_page}...")
-
-            job_items = page.locator("li.search-results__item")
-            total = await job_items.count()
-            print(f"Found {total} job posts on page {current_page}")
-
-            for i in range(total):
-                 
-                try:
-                    job = job_items.nth(i)
-                except Exception as e:
-                    print(f"Error selecting job item #{i}: {e}")
-                    continue
-
-                try:
-                    title = await job.locator("a").inner_text()
-                except Exception:
-                    title = "N/A"
-
-                try:
-                    location = await job.locator(".search-results__jobinfo.pull-left div").inner_text()
-                except Exception:
-                    location = "N/A"
-
-                try:
-                    posted = await job.locator(".search-results__post-time.pull-right").inner_text()
-                except Exception:
-                    posted = "N/A"
-
-                try:
-                    job_url = await job.locator("a.search-results__req_title").get_attribute("href")
-                    full_url = f"https://navair.yellogov.com{job_url}"
-                except Exception as e:
-                    print(f"Error extracting job URL for job #{i}: {e} \nurl: {full_url}")
-                    full_url = "N/A"
-
-                try:
-                    job_page = await browser.new_page()
-                    await job_page.goto(full_url)
-                    await job_page.wait_for_load_state("domcontentloaded", timeout=15000)
-                except Exception as e:
-                    print(f"Error loading job page for {title}: {e}")
-                    continue
-
-                try:
-                    raw_text = await job_page.locator(".inner.clearfix.ck-rendered-content").inner_text()
-                except:
-                    raw_text = ""
-
-                await job_page.close()
-
-                description_sections = extract_sections(raw_text)
-
-                job_data.append({
-                    "Title": title.strip(),
-                    "Location": location.replace(title, "").strip(),
-                    "Posted": posted.strip(),
-                    "URL": full_url.strip(),
-                    "Description raw": description_sections,
-                })
-                print(f"[{i+1}/{total}] Scraped: {title.strip()}")
-
-            # Try to go to the next page
-            try:
-                next_btn = page.locator("a[aria-label='Next']")
-                if await next_btn.count() == 0:
-                    print("No next button — stopping.")
-                    break
-                if await next_btn.get_attribute("aria-disabled") == "true":
-                    print("Next button is disabled — end of pages.")
-                    break
-                await next_btn.click()
-                await page.wait_for_timeout(2000)
-                await page.wait_for_load_state("domcontentloaded")
-                current_page += 1
-            except Exception as e:
-                print(f"Navigation to next page failed: {e}")
+        for i in range(total):
+            if i == 4:  # LIMIT for testing
                 break
 
-            # Merge duplicate columns with same name efficiently
-            df = pd.DataFrame(job_data)
-            merged_columns = defaultdict(list)
+            job_dict = {
+                "Title": await scraper.jobs.nth(i).locator("a").inner_text(),
+                "Location": await scraper.jobs.nth(i).locator(".search-results__jobinfo.pull-left div").inner_text(),
+                "Posted at": await scraper.jobs.nth(i).locator(".search-results__post-time.pull-right").inner_text(),
+                "URL": f"https://navair.yellogov.com{await scraper.jobs.nth(i).locator('a').get_attribute('href')}"
+            }
+            scraper.job_data.append(job_dict)
 
-            for col in df.columns:
-                merged_columns[col].append(df[col])
+            job_page = await scraper.goto_job_page()
+            if not job_page:
+                continue
 
-            concat_data = {}
-            for col, col_list in merged_columns.items():
-                if len(col_list) == 1:
-                    concat_data[col] = col_list[0]
-                else:
-                    merged_col = col_list[0].astype(str)
-                    for additional_col in col_list[1:]:
-                        merged_col += "\n" + additional_col.astype(str)
-                    concat_data[col] = merged_col
+            try:
+                raw_description = await job_page.locator(".inner.clearfix.ck-rendered-content").inner_text()
+            except:
+                raw_description = ""
+            await job_page.close()
 
-            merged_df = pd.concat(concat_data, axis=1).copy()
+            scraper.job_data[-1]["Description(raw)"] = raw_description
+            scraper.extract_sections(raw_description)
 
-            merged_df.to_excel(output_file, index=False)
-            print(f"\nSaved to {output_file}")
-            await browser.close()
+            print(f"[{i + 1}/{total}] Scraped: {scraper.job_data[-1]['Title']}")
+
+        scraper.save_to_excel()
+        await scraper.browser.close()
 
 
 if __name__ == "__main__":
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    default_output_file = f"navair_jobs_{timestamp}.xlsx"
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--start", type=int, default=1)
-    parser.add_argument("--end", type=str, default="max")
-    parser.add_argument("--output", type=str, default="navair_jobs.xlsx")
+    parser.add_argument("--output", type=str, default=default_output_file)
+
     args = parser.parse_args()
 
-    if args.end == "max":
-        end_page = float("inf")
-    else:
-        try:
-            end_page = int(args.end)
-        except ValueError:
-            raise ValueError("`--end` must be an integer or 'max'.")
-
-    asyncio.run(scrape_jobs(args.start, args.end, args.output))
+    asyncio.run(scrape_jobs(args.output))

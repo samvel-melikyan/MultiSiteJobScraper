@@ -20,21 +20,33 @@ class Scraper:
     async def goto_page(self, p: async_playwright, headless=True):
         self.browser = await p.chromium.launch(headless=headless)
         self.page = await self.browser.new_page()
-        self.page.set_default_timeout(7000)
+        self.page.set_default_timeout(10000)
         await self.page.goto(self.url, timeout=15000)
         print(f"Launching {self.company}")
         await self.page.wait_for_timeout(1000)
 
-    async def goto_job_page(self, i):
+    async def goto_job_page(self):
         try:
             context = await self.browser.new_context()
             job_page = await context.new_page()
-            await job_page.goto(self.job_data[i]["URL"], timeout=10000)
-            await job_page.wait_for_load_state("domcontentloaded", timeout=10000)
+            await job_page.goto(self.job_data[-1]["URL"], timeout=20000)
+            await job_page.wait_for_load_state("domcontentloaded", timeout=20000)
             return job_page
         except Exception as e:
-            print(f"Error loading job page for {self.job_data[i]['Title']}: {e}")
+            print(f"Error loading job page for {self.job_data[-1]['Title']}: {e}")
             return None
+
+    async def goto_next_page(self, next_btn_locator, end_page, current_page):
+        try:
+            if await next_btn_locator.get_attribute("disabled") or int(current_page) >= int(end_page):
+                return False
+            await next_btn_locator.click()
+            await self.page.wait_for_timeout(2000)  # Give time for page load
+            await self.page.wait_for_load_state("domcontentloaded")
+            return True
+        except Exception as e:
+            print(f"Could not navigate to next page: {e}")
+            return False
 
     async def page_tracker(self, total_pages_locator):
         total_pages = await total_pages_locator.inner_text()
@@ -44,34 +56,27 @@ class Scraper:
         elif self.start_page == "half":
             self.start_page = (self.total_pages // 2) + 1
 
+    def define_end_page(self):
+        if self.end_page == "half":
+            return self.total_pages // 2
+        elif isinstance(self.end_page, int):
+            return self.end_page
+        elif self.end_page == "max":
+            return self.total_pages
+        raise ValueError("Invalid end page value")
+
+    def define_start_page(self):
+        if self.start_page == "half":
+            return (self.total_pages // 2) + 1
+        return self.start_page
+
     async def find_jobs(self, jobs_locator, current_page):
         print(f"Scraping page {current_page} of {self.total_pages}")
         self.jobs = jobs_locator
         self.total_jobs = await self.jobs.count()
         print(f"Found {self.total_jobs} jobs on page {current_page}")
 
-    async def extract_basic_info(self, i, basic_info_locator):
-        job_format = ["entry", "mid", "senior", "lead", "manager", "director",
-                      "executive", "internship", "intern", "associate"]
-
-        for key, locator in basic_info_locator.items():
-            try:
-                if key == "url":
-                    href = await self.jobs.nth(i).locator(locator).get_attribute('href')
-                    self.job_data[i]["URL"] = f"{self.url}{href}"
-                elif key == "job id":
-                    self.job_data[i]["Job ID"] = await self.jobs.nth(i).locator(locator).get_attribute("data-job-id")
-                else:
-                    self.job_data[i][key.title()] = await self.jobs.nth(i).locator(locator).inner_text()
-            except Exception as e:
-                print(f"Error extracting {key} for job index {i}: {e}")
-                self.job_data[i][key.title()] = "N/A"
-
-        title_words = set(re.findall(r'\w+', self.job_data[i].get("Title", "").lower()))
-        job_fmt = next((fmt for fmt in job_format if any(fmt in word for word in title_words)), "N/A")
-        self.job_data[i]["Job Format"] = job_fmt
-
-    def extract_sections(self, text, i):
+    def extract_sections(self, text):
         lines = text.splitlines()
         sections = {}
         current_header = "General"
@@ -92,19 +97,7 @@ class Scraper:
 
         for key, value in sections.items():
             cleaned = re.sub(r"\bapply now\b", "", value, flags=re.IGNORECASE).strip()
-            self.job_data[i][key] = cleaned
-
-    async def goto_next_page(self, next_btn_locator, current_page):
-        try:
-            if await next_btn_locator.get_attribute("disabled") or int(current_page) >= int(self.end_page):
-                print("Reached last page or end limit.")
-                return False
-            await next_btn_locator.click()
-            await self.page.wait_for_load_state("domcontentloaded")
-            return True
-        except Exception as e:
-            print(f"Could not navigate to next page: {e}")
-            return False
+            self.job_data[-1][key] = cleaned
 
     def save_to_excel(self):
         df = pd.DataFrame(self.job_data)
