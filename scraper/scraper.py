@@ -1,6 +1,8 @@
 import re
 import pandas as pd
 from collections import defaultdict
+
+from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
 class Scraper:
@@ -98,6 +100,29 @@ class Scraper:
         for key, value in sections.items():
             cleaned = re.sub(r"\bapply now\b", "", value, flags=re.IGNORECASE).strip()
             self.job_data[-1][key] = cleaned
+
+    def extract_sections_from_html(self, html: str):
+        soup = BeautifulSoup(html, 'html.parser')
+        sections = {}
+        current_header = "General"
+        sections[current_header] = []
+
+        for p in soup.find_all("p"):
+            bold = p.find("b")
+            if bold:
+                header_text = bold.get_text(strip=True).rstrip(":")
+                current_header = header_text
+                if current_header not in sections:
+                    sections[current_header] = []
+            else:
+                text = p.get_text(strip=True)
+                if text:
+                    sections[current_header].append(text)
+
+        for key in sections:
+            sections[key] = "\n".join(sections[key]).strip()
+
+        return sections
 
     def save_to_excel(self):
         df = pd.DataFrame(self.job_data)
