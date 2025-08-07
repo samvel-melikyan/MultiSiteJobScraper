@@ -9,12 +9,11 @@ async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
         scraper = Scraper(url, company_name, start_page, end_page, output_file)
         await scraper.goto_page(p)
-        await scraper.page_tracker(scraper.page.locator(".pagination-total-pages"))
-        scraper.define_end_page()
-
+        total_page_number = scraper.page.locator(".pagination-total-pages")
+        await scraper.define_total_pages(total_page_number)
         input_page_number = scraper.page.locator("#pagination-current-bottom")
-        go_btn = scraper.page.locator(".pagination-page-jump").click()
-        await scraper.goto_starting_page(input_page_number, go_btn)
+        await scraper.goto_starting_page(input_page_number)
+
         while True:
             current_page = await scraper.page.locator("#pagination-current-bottom").get_attribute("value")
             if current_page is None:

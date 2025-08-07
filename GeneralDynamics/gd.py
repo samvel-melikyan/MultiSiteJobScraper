@@ -1,9 +1,7 @@
 import asyncio
 import argparse
 from playwright.async_api import async_playwright
-import sys
-
-from scraper.scraper import Scraper  # Update this import path if needed
+from scraper.scraper import Scraper
 
 
 async def scrape_jobs(start_page, end_page, output_file):
@@ -13,26 +11,26 @@ async def scrape_jobs(start_page, end_page, output_file):
     async with async_playwright() as p:
         scraper = Scraper(url, company, start_page, end_page, output_file)
         await scraper.goto_page(p)
-        total_pages_locator = scraper.page.locator(".pagination li").last.get_attribute("data-page-number")
-        await scraper.page_tracker(int(total_pages_locator))
-        scraper.define_end_page()
+        total_pages_locator = scraper.page.locator(".pagination li")
+        total_pages = await total_pages_locator.nth(-1).get_attribute("data-page-number")
+        await scraper.define_total_pages(int(total_pages))
 
         while True:
-            current_page = int(await input_page_number.get_attribute("value"))
+            current_page_raw = await scraper.page.locator(".pagination li.page-item.active").inner_text()
+            current_page = int(current_page_raw)
             if current_page is None:
                 break
 
-            jobs_locator = scraper.page.locator("#search-results-list li")
-            await scraper.find_jobs(jobs_locator, current_page)\
+            jobs_locator = scraper.page.locator(".career-search-result.col-12")
+            await scraper.find_jobs(jobs_locator, current_page)
 
             for i in range(scraper.total_jobs):
                 if i == 4:
                     break
                 try:
                     job = scraper.jobs.nth(i)
-                    title = await job.locator("a span").inner_text()
-                    url_suffix = await job.locator("a").get_attribute("href")
-                    full_url = f"https://jobs.boeing.com{url_suffix}"
+                    title = await job.locator("h4").inner_text()
+                    full_url = await job.get_by_text("VIEW JOB DESCRIPTION").get_attribute("href")
                 except Exception as e:
                     print(f"[{i+1}] Failed extracting job summary: {e}")
                     continue
@@ -46,20 +44,26 @@ async def scrape_jobs(start_page, end_page, output_file):
                 if not job_page:
                     continue
 
-                def safe_get(selector):
-                    try:
-                        return job_page.locator(selector).inner_text()
-                    except:
-                        return "N/A"
+                def safe_get(selector, method="inner_text", attribute=None):
+                    """Safely get text from a selector, returning 'N/A' if not found."""
+                    if method == "inner_text":
+                        try:
+                            return job_page.locator(selector).inner_text()
+                        except Exception:
+                            return "N/A"
+                    elif method == "get_attribute":
+                        try:
+                            return job_page.locator(selector).get_attribute(attribute)
+                        except Exception:
+                            return "N/A"
 
-                location = await safe_get(".job-description__job-location")
-                posted_date = await safe_get(".job-date")
-                job_id = await safe_get(".job-id")
-                category = await safe_get(".job-category")
-                role_type = await safe_get(".job-role-type")
+                location = await safe_get(".inset__location dd", method="get_attribute", attribute="data-value")
+                job_id = await safe_get(".inset__id")
+                category = await safe_get(".inset__category dt")
+                employment_type = await safe_get(".inset__type dt")
 
                 try:
-                    raw_html = await job_page.locator("#ats-description").inner_text()
+                    raw_html = await job_page.locator(".career-detail-description").inner_html()
                 except:
                     raw_html = ""
 
@@ -68,16 +72,15 @@ async def scrape_jobs(start_page, end_page, output_file):
                 scraper.job_data[-1].update({
                     "Location": location,
                     "Job ID": job_id.replace("Job ID ", ""),
-                    "Role Type": role_type.replace("Role Type ", ""),
+                    "Role Type": employment_type.replace("Role Type ", ""),
                     "Category": category.replace("Category ", ""),
-                    "Posted Date": posted_date.replace("Post Date ", ""),
                     "Job Description (Raw)": raw_html
                 })
 
-                scraper.extract_sections(raw_html)
+                scraper.extract_sections_from_html(raw_html)
                 print(f"[{i+1}/{scraper.total_jobs}] Scraped: {title}")
 
-            next_btn = scraper.page.locator(".next")
+            next_btn = scraper.page.locator(".pagination li").nth(-2)
             success = await scraper.goto_next_page(next_btn, current_page)
             if not success:
                 break

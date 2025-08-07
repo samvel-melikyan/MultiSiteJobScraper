@@ -1,14 +1,13 @@
 import re
 import pandas as pd
 from collections import defaultdict
-
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
+
 
 class Scraper:
     def __init__(self, url: str, company: str, start_page=1, end_page="max", output_file=None) -> None:
         self.url = url
-        self.page = None
         self.company = company
         self.start_page = start_page
         self.end_page = end_page
@@ -17,50 +16,67 @@ class Scraper:
         self.total_pages = 0
         self.total_jobs = 0
         self.jobs = None
+        self.page = None
         self.browser = None
 
-
     async def goto_page(self, p: async_playwright, headless=True):
+        print(f"Launching {self.company}")
         self.browser = await p.chromium.launch(headless=headless)
         self.page = await self.browser.new_page()
         self.page.set_default_timeout(10000)
-        await self.page.goto(self.url, timeout=15000)
-        print(f"Launching {self.company}")
+
+        try:
+            await self.page.goto(self.url, timeout=60000, wait_until="domcontentloaded")
+        except Exception:
+            print("Timeout while loading page. Retrying with unlimited timeout...")
+            try:
+                await self.page.goto(self.url, timeout=0, wait_until="domcontentloaded")
+            except Exception as e:
+                print(f"Failed to load the page after retry: {e}")
+                await self.browser.close()
+                raise
+
         await self.page.wait_for_timeout(1000)
 
     async def goto_job_page(self):
         try:
             context = await self.browser.new_context()
             job_page = await context.new_page()
-            await job_page.goto(self.job_data[-1]["URL"], timeout=20000)
-            await job_page.wait_for_load_state("domcontentloaded", timeout=20000)
+            job_url = self.job_data[-1]["URL"]
+            try:
+                await job_page.goto(job_url, timeout=10000, wait_until="domcontentloaded")
+            except Exception:
+                print("Timeout on job page. Retrying with unlimited timeout...")
+                await job_page.goto(job_url, timeout=0, wait_until="domcontentloaded")
+
+            await job_page.wait_for_timeout(500)
             return job_page
         except Exception as e:
-            print(f"Error loading job page for {self.job_data[-1]['Title']}: {e}")
+            print(f"Error loading job page for '{self.job_data[-1]['Title']}': {e}")
             return None
 
     async def goto_next_page(self, next_btn_locator, current_page):
+
         try:
-            if await next_btn_locator.get_attribute("disabled") or int(current_page) >= int(self.end_page):
+            if await next_btn_locator.get_attribute("disabled") is not None or int(current_page) >= int(self.end_page):
+                print("Reached the end page.")
                 return False
             await next_btn_locator.click()
-            await self.page.wait_for_timeout(2000)  # Give time for page load
+            await self.page.wait_for_timeout(2000)
             await self.page.wait_for_load_state("domcontentloaded")
             return True
         except Exception as e:
             print(f"Could not navigate to next page: {e}")
             return False
 
-    async def page_tracker(self, total_pages_locator):
+    async def define_total_pages(self, total_pages_locator):
         if isinstance(total_pages_locator, int):
             self.total_pages = total_pages_locator
         else:
             total_pages = await total_pages_locator.inner_text()
             self.total_pages = int(''.join(re.findall(r'\d+', total_pages)))
-        if self.end_page == "half":
-            self.end_page = self.total_pages // 2
-        elif self.start_page == "half":
-            self.start_page = (self.total_pages // 2) + 1
+        self.define_end_page()
+        self.define_start_page()
 
     async def goto_starting_page(self, input_area):
         if not isinstance(self.start_page, int):
@@ -70,15 +86,15 @@ class Scraper:
             await self.page.keyboard.press("Enter")
             await self.page.wait_for_timeout(2000)
 
-
     def define_end_page(self):
         if self.end_page == "half":
-            return self.total_pages // 2
+            self.end_page = self.total_pages // 2
         elif isinstance(self.end_page, int):
-            return self.end_page
+            pass
         elif self.end_page == "max":
-            return self.total_pages
-        raise ValueError("Invalid end page value")
+            self.end_page = self.total_pages
+        else:
+            self.end_page = self.total_pages
 
     def define_start_page(self):
         if self.start_page == "half":
@@ -140,6 +156,7 @@ class Scraper:
     def save_to_excel(self):
         df = pd.DataFrame(self.job_data)
         merged_columns = defaultdict(list)
+
         for col in df.columns:
             merged_columns[col].append(df[col])
 

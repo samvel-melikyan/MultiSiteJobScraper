@@ -13,19 +13,15 @@ async def scrape_jobs(output_file: str):
     url = "https://navair.yellogov.com/job_boards/mdxt8VG0qqvc7z8xHhZztg"
     company_name = "NAVAIR"
 
-    # Ensure directory exists
-    # os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
     async with async_playwright() as p:
         scraper = Scraper(url, company_name, output_file=output_file)
         await scraper.goto_page(p)
-
-        await scraper.find_jobs(scraper.page.locator("li.search-results__item"), 1)
+        current_page = scraper.define_start_page()
+        await scraper.find_jobs(scraper.page.locator("li.search-results__item"), current_page=current_page)
         total = await scraper.jobs.count()
 
         for i in range(total):
-            if i == 4:  # LIMIT for testing
-                break
 
             job_dict = {
                 "Title": await scraper.jobs.nth(i).locator("a").inner_text(),
