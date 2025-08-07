@@ -10,13 +10,11 @@ async def scrape_jobs(start_page, end_page, output_file):
         scraper = Scraper(url, company_name, start_page, end_page, output_file)
         await scraper.goto_page(p)
         await scraper.page_tracker(scraper.page.locator(".pagination-total-pages"))
-        max_page = scraper.define_end_page()
+        scraper.define_end_page()
 
-        if start_page > 1:
-            await scraper.page.locator("#pagination-current-bottom").fill(str(start_page))
-            await scraper.page.locator(".pagination-page-jump").click()
-            await scraper.page.wait_for_timeout(2000)
-
+        input_page_number = scraper.page.locator("#pagination-current-bottom")
+        go_btn = scraper.page.locator(".pagination-page-jump").click()
+        await scraper.goto_starting_page(input_page_number, go_btn)
         while True:
             current_page = await scraper.page.locator("#pagination-current-bottom").get_attribute("value")
             if current_page is None:
@@ -57,7 +55,7 @@ async def scrape_jobs(start_page, end_page, output_file):
 
                 print(f"[{i+1}/{total}] Scraped: {scraper.job_data[-1]['Title']}")
 
-            has_next = await scraper.goto_next_page(scraper.page.locator("a.next"), max_page, current_page)
+            has_next = await scraper.goto_next_page(scraper.page.locator("a.next"), current_page)
             if not has_next:
                 break
 

@@ -66,8 +66,6 @@ async def scrape_jobs(start_page, end_page, output_file):
             print(f"Found {total} jobs on page {current_page}")
 
             for i in range(total):
-                if i == 5:  # skipping job index 5 as per original code
-                    continue
 
                 try:
                     job = jobs.nth(i)

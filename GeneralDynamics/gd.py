@@ -7,16 +7,14 @@ from scraper.scraper import Scraper  # Update this import path if needed
 
 
 async def scrape_jobs(start_page, end_page, output_file):
-    url = "https://jobs.boeing.com/search-jobs"
-    company = "Boeing"
+    url = "https://gdmissionsystems.com/careers/job-search"
+    company = "General Dynamics"
 
     async with async_playwright() as p:
         scraper = Scraper(url, company, start_page, end_page, output_file)
         await scraper.goto_page(p)
-        await scraper.page_tracker(scraper.page.locator(".pagination-total-pages"))
-        input_page_number = scraper.page.locator("#pagination-current-bottom")
-        go_btn = scraper.page.locator(".pagination-page-jump")
-        await scraper.goto_starting_page(input_page_number)
+        total_pages_locator = scraper.page.locator(".pagination li").last.get_attribute("data-page-number")
+        await scraper.page_tracker(int(total_pages_locator))
         scraper.define_end_page()
 
         while True:

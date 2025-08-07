@@ -19,6 +19,7 @@ class Scraper:
         self.jobs = None
         self.browser = None
 
+
     async def goto_page(self, p: async_playwright, headless=True):
         self.browser = await p.chromium.launch(headless=headless)
         self.page = await self.browser.new_page()
@@ -38,9 +39,9 @@ class Scraper:
             print(f"Error loading job page for {self.job_data[-1]['Title']}: {e}")
             return None
 
-    async def goto_next_page(self, next_btn_locator, end_page, current_page):
+    async def goto_next_page(self, next_btn_locator, current_page):
         try:
-            if await next_btn_locator.get_attribute("disabled") or int(current_page) >= int(end_page):
+            if await next_btn_locator.get_attribute("disabled") or int(current_page) >= int(self.end_page):
                 return False
             await next_btn_locator.click()
             await self.page.wait_for_timeout(2000)  # Give time for page load
@@ -51,12 +52,24 @@ class Scraper:
             return False
 
     async def page_tracker(self, total_pages_locator):
-        total_pages = await total_pages_locator.inner_text()
-        self.total_pages = int(''.join(re.findall(r'\d+', total_pages)))
+        if isinstance(total_pages_locator, int):
+            self.total_pages = total_pages_locator
+        else:
+            total_pages = await total_pages_locator.inner_text()
+            self.total_pages = int(''.join(re.findall(r'\d+', total_pages)))
         if self.end_page == "half":
             self.end_page = self.total_pages // 2
         elif self.start_page == "half":
             self.start_page = (self.total_pages // 2) + 1
+
+    async def goto_starting_page(self, input_area):
+        if not isinstance(self.start_page, int):
+            self.start_page = self.define_start_page()
+        if self.start_page > 1:
+            await input_area.fill(str(self.start_page))
+            await self.page.keyboard.press("Enter")
+            await self.page.wait_for_timeout(2000)
+
 
     def define_end_page(self):
         if self.end_page == "half":
