@@ -6,8 +6,8 @@ from scraper.scraper import Scraper
 
 
 async def scrape_jobs(start_page, end_page, output_file):
-    url = "https://jobs.boeing.com/search-jobs"
-    company = "Boeing"
+    url = "https://www.lockheedmartinjobs.com/search-jobs"
+    company = "Lockhead Martin"
 
     async with async_playwright() as p:
         scraper = Scraper(url, company, start_page, end_page, output_file)
@@ -78,7 +78,7 @@ async def scrape_jobs(start_page, end_page, output_file):
                     "Job ID": job_id.replace("Job ID ", ""),
                     "Role Type": role_type.replace("Role Type ", ""),
                     "Category": category.replace("Category ", ""),
-                    "Posted Date": posted_date.replace("Post Date ", ""),
+                    "Posted Date": posted_date.replace("Date posted: ", ""),
                     "Job Description (Raw)": raw_html
                 })
 

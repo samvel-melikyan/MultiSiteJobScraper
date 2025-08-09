@@ -174,3 +174,17 @@ class Scraper:
             print(f"Data saved to {self.output_file}")
         else:
             print("No output file specified. Data not saved.")
+
+
+    async def safe_get(selector, method="inner_text", attribute=None):
+        """Safely get text from a selector, returning 'N/A' if not found."""
+        if method == "inner_text":
+            try:
+                return await job_page.locator(selector).inner_text()
+            except Exception:
+                return "N/A"
+        elif method == "get_attribute":
+            try:
+                return await job_page.locator(selector).get_attribute(attribute)
+            except Exception:
+                return "N/A"

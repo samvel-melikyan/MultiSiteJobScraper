@@ -1,184 +1,100 @@
 import asyncio
 import argparse
+from datetime import datetime
+
 from playwright.async_api import async_playwright
-import pandas as pd
-from collections import defaultdict
-
-
-def extract_salary_range(raw_text):
-    start_phrase = "Target salary range:"
-    end_phrase = "This estimate"
-
-    try:
-        start = raw_text.index(start_phrase) + len(start_phrase)
-        end = raw_text.index(end_phrase, start)
-        return raw_text[start:end].strip()
-    except ValueError:
-        return None
-
-
-def extract_sections(text):
-    lines = text.splitlines()
-    sections = {}
-    current_header = "General"
-    sections[current_header] = []
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.endswith(":") and len(stripped.split()) < 10:
-            current_header = stripped.rstrip(":")
-            sections[current_header] = []
-        else:
-            sections[current_header].append(stripped)
-
-    for key in sections:
-        sections[key] = "\n".join(sections[key]).strip()
-
-    return sections
-
-
-job_levels = ["entry", "mid", "senior", "lead", "manager", "director", "executive", "internship", "intern", "associate"]
+from scraper.scraper import Scraper
 
 
 async def scrape_jobs(start_page, end_page, output_file):
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        page.set_default_timeout(10000)
-        await page.goto("https://gdmissionsystems.com/careers/job-search")
-        print("Launching gdmissionsystems.com")
-        print("Loading all jobs...")
-        await page.wait_for_timeout(2000)
+    url = "https://gdmissionsystems.com/careers/job-search"
+    company = "General Dynamics"
 
-        job_data = []
+    async with (async_playwright() as p):
+        scraper = Scraper(url, company, start_page, end_page, output_file)
+        await scraper.goto_page(p)
+        total_pages_locator = scraper.page.locator(".pagination li")
+        total_pages = await total_pages_locator.nth(-1).get_attribute("data-page-number")
+        await scraper.define_total_pages(int(total_pages))
+        next_btn = scraper.page.locator(".pagination li").nth(-2)
 
-        current_page = start_page
+        async def get_current_page():
+            current_page_raw = await scraper.page.locator(".pagination li").nth(2).inner_text()
+            return int(current_page_raw)
         while True:
-            if current_page > end_page:
+            current_page = await get_current_page()
+
+            if current_page is None:
                 break
 
-            print(f"Scraping page {current_page}")
+            if current_page < scraper.start_page:
+                print(f"Going to {scraper.start_page} page")
+                while True:
+                    if current_page == scraper.start_page:
+                        break
+                    else:
+                        await next_btn.click()
+                        current_page = await get_current_page()
 
-            jobs = page.locator("div .career-search-result.col-12")
-            total = await jobs.count()
-            print(f"Found {total} jobs on page {current_page}")
+            jobs_locator = scraper.page.locator(".career-search-result.col-12")
+            await scraper.find_jobs(jobs_locator, current_page)
 
-            for i in range(total):
 
+            for i in range(scraper.total_jobs):
                 try:
-                    job = jobs.nth(i)
+                    job = scraper.jobs.nth(i)
                     title = await job.locator("h4").inner_text()
                     full_url = await job.get_by_text("VIEW JOB DESCRIPTION").get_attribute("href")
                 except Exception as e:
-                    print(f"Error extracting job details for index {i} on page {current_page}: {e}")
+                    print(f"[{i+1}] Failed extracting job summary: {e}")
                     continue
 
-                try:
-                    job_page = await browser.new_page()
-                    await job_page.goto(full_url)
-                    await job_page.wait_for_load_state("domcontentloaded")
-                except Exception as e:
-                    print(f"Error loading job page for {title}: {e}")
-                    await job_page.close()
+                scraper.job_data.append({
+                    "Title": title,
+                    "URL": full_url
+                })
+
+                job_page = await scraper.goto_job_page()
+                if not job_page:
                     continue
 
-                try:
-                    location = await job_page.locator(".inset__location").inner_text()
-                except:
-                    location = "N/A"
-                try:
-                    job_id = await job_page.locator(".inset__id").inner_text()
-                except:
-                    job_id = "N/A"
-                try:
-                    category = await job_page.locator(".inset__category").inner_text()
-                except:
-                    category = "N/A"
-                try:
-                    role_type = await job_page.locator(".inset__company dd a").inner_text()
-                except:
-                    role_type = "N/A"
-                try:
-                    employment_type = await job_page.locator(".inset__type").inner_text()
-                except:
-                    employment_type = "N/A"
-                try:
-                    raw_text = await job_page.locator(".career-detail-description").inner_text()
-                except:
-                    raw_text = ""
+                location = await scraper.safe_get(".inset__location dd", method="get_attribute", attribute="data-value")
+                job_id = await scraper.safe_get(".inset__id")
+                category = await scraper.safe_get(".inset__category dt")
+                employment_type = await scraper.safe_get(".inset__type dt")
+                raw_text = await scraper.safe_get(".career-detail-description")
+
 
                 await job_page.close()
 
-                description_sections = extract_sections(raw_text)
-
-                job_entry = {
-                    "Title": title,
+                scraper.job_data[-1].update({
                     "Location": location,
                     "Job ID": job_id.replace("ID ", ""),
-                    "Role Type": role_type.replace("Remote Option ", ""),
-                    "Employment Type": employment_type.replace("Employment Type ", ""),
-                    "Category": category.replace("Category ", ""),
-                    "Level": str([level for level in job_levels if level in title.lower()]).strip("[]").replace("'", ""),
-                    "Salary": extract_salary_range(raw_text),
-                    "URL": full_url,
+                    "Employment Type": employment_type.replace("Employment Type", ""),
+                    "Category": category.replace("Category", ""),
                     "Job Description (Raw)": raw_text
-                }
+                })
 
-                for key, value in description_sections.items():
-                    job_entry[key] = value
+                scraper.extract_sections(raw_text)
+                print(f"[{i+1}/{scraper.total_jobs}] Scraped: {title}")
 
-                job_data.append(job_entry)
-                print(f"[{i+1}/{total}] Scraped: {title}")
 
-            try:
-                next_btn = page.locator(".page-item.secondary").nth(1)
-                if await next_btn.get_attribute("disabled"):
-                    print("Reached last page.")
-                    break
-                await next_btn.click()
-                await page.wait_for_load_state("domcontentloaded")
-                current_page += 1
-            except Exception as e:
-                print(f"Could not navigate to next page: {e}")
+            success = await scraper.goto_next_page(next_btn, current_page)
+            if not success:
                 break
 
-        df = pd.DataFrame(job_data)
-
-        # --- Merge duplicate columns ---
-        merged_columns = defaultdict(list)
-        for col in df.columns:
-            merged_columns[col].append(df[col])
-
-        merged_df = pd.DataFrame()
-        for col, col_list in merged_columns.items():
-            if len(col_list) == 1:
-                merged_df[col] = col_list[0]
-            else:
-                merged_df[col] = col_list[0].astype(str)
-                for additional_col in col_list[1:]:
-                    merged_df[col] = merged_df[col] + "\n" + additional_col.astype(str)
-
-        merged_df.to_excel(output_file, index=False)
-        print(f"\nSaved to {output_file}")
-
-        await browser.close()
+        scraper.save_to_excel()
+        await scraper.browser.close()
 
 
 if __name__ == "__main__":
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    default_output_file = f"general_dynamics_jobs_{timestamp}.xlsx"
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
-    parser.add_argument("--end", type=str, default="max")  # now accepts "max"
-    parser.add_argument("--output", type=str, default="general_dynamics_jobs.xlsx")
+    parser.add_argument("--end", type=str, default="max")
+    parser.add_argument("--output", type=str, default=default_output_file)
     args = parser.parse_args()
 
-    if args.end == "max":
-        end_page = float("inf")
-    else:
-        try:
-            end_page = int(args.end)
-        except ValueError:
-            raise ValueError("`--end` must be an integer or 'max'.")
-
-    asyncio.run(scrape_jobs(args.start, end_page, args.output))
+    asyncio.run(scrape_jobs(args.start, args.end, args.output))

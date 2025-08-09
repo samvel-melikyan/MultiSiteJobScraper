@@ -1,7 +1,6 @@
 import asyncio
 import argparse
 import sys
-import os
 from datetime import datetime
 
 from playwright.async_api import async_playwright
