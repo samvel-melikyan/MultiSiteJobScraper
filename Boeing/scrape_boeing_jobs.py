@@ -79,7 +79,6 @@ async def scrape_jobs(start_page, end_page, output_file):
                     "Role Type": role_type.replace("Role Type ", ""),
                     "Category": category.replace("Category ", ""),
                     "Posted Date": posted_date.replace("Post Date ", ""),
-                    "Job Description (Raw)": raw_html
                 })
 
                 scraper.extract_sections(raw_html)

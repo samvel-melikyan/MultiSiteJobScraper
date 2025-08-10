@@ -41,7 +41,6 @@ async def scrape_jobs(output_file: str):
                 raw_description = ""
             await job_page.close()
 
-            scraper.job_data[-1]["Description(raw)"] = raw_description
             scraper.extract_sections(raw_description)
 
             print(f"[{i + 1}/{total}] Scraped: {scraper.job_data[-1]['Title']}")

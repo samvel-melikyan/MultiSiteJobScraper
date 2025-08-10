@@ -1,5 +1,7 @@
 import asyncio
 import argparse
+from datetime import datetime
+
 from playwright.async_api import async_playwright
 from scraper.scraper import Scraper
 
@@ -49,7 +51,6 @@ async def scrape_jobs(start_page, end_page, output_file):
                 raw_description = await job_page.locator("div.job-description").inner_text()
                 await job_page.close()
 
-                scraper.job_data[-1]["Description(raw)"] = raw_description
                 scraper.extract_sections(raw_description)
 
                 print(f"[{i+1}/{total}] Scraped: {scraper.job_data[-1]['Title']}")
@@ -62,20 +63,13 @@ async def scrape_jobs(start_page, end_page, output_file):
         await scraper.browser.close()
 
 if __name__ == "__main__":
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    default_output_file = f"l3harris_jobs_{timestamp}.xlsx"
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
     parser.add_argument("--end", type=str, default="max")
     parser.add_argument("--output", type=str, default="l3harris_jobs.xlsx")
     args = parser.parse_args()
 
-    if args.end == "max":
-        end_page = "max"
-    elif args.end == "half":
-        end_page = "half"
-    else:
-        try:
-            end_page = int(args.end)
-        except ValueError:
-            raise ValueError("`--end` must be an integer or 'max'.")
-
-    asyncio.run(scrape_jobs(args.start, end_page, args.output))
+    asyncio.run(scrape_jobs(args.start, args.end, args.output))

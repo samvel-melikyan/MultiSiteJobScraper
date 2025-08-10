@@ -21,10 +21,14 @@ async def scrape_jobs(start_page, end_page, output_file):
         async def get_current_page():
             current_page_raw = await scraper.page.locator(".pagination li").nth(2).inner_text()
             return int(current_page_raw)
+
         while True:
             current_page = await get_current_page()
 
             if current_page is None:
+                break
+
+            if current_page == 2:
                 break
 
             if current_page < scraper.start_page:
@@ -58,11 +62,11 @@ async def scrape_jobs(start_page, end_page, output_file):
                 if not job_page:
                     continue
 
-                location = await scraper.safe_get(".inset__location dd", method="get_attribute", attribute="data-value")
-                job_id = await scraper.safe_get(".inset__id")
-                category = await scraper.safe_get(".inset__category dt")
-                employment_type = await scraper.safe_get(".inset__type dt")
-                raw_text = await scraper.safe_get(".career-detail-description")
+                location = await scraper.safe_get(".inset__location dd", page = job_page, method="get_attribute", attribute="data-value")
+                job_id = await scraper.safe_get(".inset__id", page = job_page)
+                category = await scraper.safe_get(".inset__category dt", page = job_page)
+                employment_type = await scraper.safe_get(".inset__type dt", page = job_page)
+                raw_text = await scraper.safe_get(".career-detail-description", page = job_page)
 
 
                 await job_page.close()
@@ -72,7 +76,6 @@ async def scrape_jobs(start_page, end_page, output_file):
                     "Job ID": job_id.replace("ID ", ""),
                     "Employment Type": employment_type.replace("Employment Type", ""),
                     "Category": category.replace("Category", ""),
-                    "Job Description (Raw)": raw_text
                 })
 
                 scraper.extract_sections(raw_text)

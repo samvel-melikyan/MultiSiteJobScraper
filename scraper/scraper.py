@@ -107,25 +107,45 @@ class Scraper:
         self.total_jobs = await self.jobs.count()
         print(f"Found {self.total_jobs} jobs on page {current_page}")
 
+    import re
+
     def extract_sections(self, text):
+        known_headers = {
+            "description": "Description",
+            "skills": "Skills",
+            "basic qualifications": "Basic Qualifications",
+            "desired skills": "Desired Skills"
+        }
+
         lines = text.splitlines()
         sections = {}
-        current_header = "General"
+        current_header = "Job Description (Raw)"
         sections[current_header] = []
 
         for line in lines:
             stripped = line.strip()
             if not stripped:
                 continue
+
             if stripped.endswith(":") and len(stripped.split()) < 10:
-                current_header = stripped.rstrip(":")
-                sections[current_header] = []
+                # Normalize header
+                header_name = stripped.rstrip(":").strip().lower()
+                # Map to known header if exists
+                if header_name in known_headers:
+                    current_header = known_headers[header_name]
+                else:
+                    current_header = stripped.rstrip(":").strip()
+                # Ensure the key exists
+                if current_header not in sections:
+                    sections[current_header] = []
             else:
                 sections[current_header].append(stripped)
 
+        # Join lines
         for key in sections:
             sections[key] = "\n".join(sections[key]).strip()
 
+        # Clean and store
         for key, value in sections.items():
             cleaned = re.sub(r"\bapply now\b", "", value, flags=re.IGNORECASE).strip()
             self.job_data[-1][key] = cleaned
@@ -175,16 +195,27 @@ class Scraper:
         else:
             print("No output file specified. Data not saved.")
 
+    async def safe_get(self, selector, page=None, method="inner_text", attribute=None):
+        """
+        Safely get data from a selector.
+        Supported methods:
+          - "inner_text"   → returns text inside element
+          - "inner_html"   → returns HTML inside element
+          - "get_attribute" → returns element attribute (needs 'attribute' param)
+        Returns "N/A" if not found or error occurs.
+        """
+        if page is None:
+            page = self.page
+        locator = page.locator(selector)
 
-    async def safe_get(selector, method="inner_text", attribute=None):
-        """Safely get text from a selector, returning 'N/A' if not found."""
-        if method == "inner_text":
-            try:
-                return await job_page.locator(selector).inner_text()
-            except Exception:
-                return "N/A"
-        elif method == "get_attribute":
-            try:
-                return await job_page.locator(selector).get_attribute(attribute)
-            except Exception:
-                return "N/A"
+        try:
+            if method == "inner_text":
+                return await locator.inner_text()
+            elif method == "inner_html":
+                return await locator.inner_html()
+            elif method == "get_attribute" and attribute:
+                return await locator.get_attribute(attribute)
+            else:
+                return "N/A"  # Unsupported method or missing attribute
+        except Exception:
+            return "N/A"
