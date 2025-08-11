@@ -107,15 +107,27 @@ class Scraper:
         self.total_jobs = await self.jobs.count()
         print(f"Found {self.total_jobs} jobs on page {current_page}")
 
-    import re
 
     def extract_sections(self, text):
+        # Define canonical headers
         known_headers = {
             "description": "Description",
             "skills": "Skills",
             "basic qualifications": "Basic Qualifications",
             "desired skills": "Desired Skills"
         }
+
+        def normalize_header(header):
+            """Map similar headers to a known one if similarity is high enough."""
+            header_lower = header.lower()
+            for key, canonical in known_headers.items():
+                # Simple containment check
+                if key in header_lower:
+                    return canonical
+                # Fuzzy match for near matches
+                if SequenceMatcher(None, key, header_lower).ratio() > 0.75:
+                    return canonical
+            return header.strip()
 
         lines = text.splitlines()
         sections = {}
@@ -128,27 +140,22 @@ class Scraper:
                 continue
 
             if stripped.endswith(":") and len(stripped.split()) < 10:
-                # Normalize header
-                header_name = stripped.rstrip(":").strip().lower()
-                # Map to known header if exists
-                if header_name in known_headers:
-                    current_header = known_headers[header_name]
-                else:
-                    current_header = stripped.rstrip(":").strip()
-                # Ensure the key exists
+                raw_header = stripped.rstrip(":").strip()
+                current_header = normalize_header(raw_header)
                 if current_header not in sections:
                     sections[current_header] = []
             else:
                 sections[current_header].append(stripped)
 
-        # Join lines
+        # Join lines for each section
         for key in sections:
             sections[key] = "\n".join(sections[key]).strip()
 
-        # Clean and store
+        # Clean and store into job_data
         for key, value in sections.items():
             cleaned = re.sub(r"\bapply now\b", "", value, flags=re.IGNORECASE).strip()
             self.job_data[-1][key] = cleaned
+
 
     def extract_sections_from_html(self, html: str):
         soup = BeautifulSoup(html, 'html.parser')
