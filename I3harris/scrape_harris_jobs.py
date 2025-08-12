@@ -69,7 +69,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=1)
     parser.add_argument("--end", type=str, default="max")
-    parser.add_argument("--output", type=str, default="default_output_file")
+    parser.add_argument("--output", type=str, default=default_output_file)
     args = parser.parse_args()
 
     asyncio.run(scrape_jobs(args.start, args.end, args.output))
